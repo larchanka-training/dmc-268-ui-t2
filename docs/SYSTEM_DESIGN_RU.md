@@ -1,7 +1,7 @@
 # AI Code Reviewer — System Design
 
 Команда 2 · Larchanka · Tech Lead: Нарек Меликсетян  
-Версия: 1.1 · 13 сентября 2026 · Статус: на согласовании команды
+Версия: 1.2 · 13 сентября 2026 · Статус: на согласовании команды
 
 ## 1. Назначение и статус решений
 
@@ -33,6 +33,7 @@
 | Сводка и inline-замечания в PR; просмотр запусков, diff и результатов в UI | Полный аналог интерфейса GitLab, чат с агентом |
 | Python и TypeScript/TSX для AST-контекста; остальные текстовые файлы — без гарантий AST | Индексирование всего репозитория, внешний RAG и поддержка всех языков |
 | Чтение кода и публикация замечаний | Выполнение кода из PR, изменение ветки, auto-merge и применение исправлений |
+| Работа запуска до terminal-состояния независимо от UI-сессии | Отмена уже принятого запуска пользователем |
 
 Встроенные применяемые suggestions не обязательны для v1: рекомендация текстом допустима. Ревью носит рекомендательный характер, не заменяет тесты, линтеры, SAST и человеческое одобрение. Отсутствие замечаний не является доказательством отсутствия ошибок.
 
@@ -54,22 +55,27 @@ Backend baseline: [`f7ae81e`](https://github.com/larchanka-training/dmc-268-api-
 
 ```mermaid
 flowchart TD
-    User["Разработчик"] --> UI["React UI"]
+    User["Разработчик"] --> Browser["React UI в браузере"]
+    Browser -->|HTTPS: UI и /api| Proxy["Reverse proxy / HTTPS"]
+    GH["GitHub API"]
+    GH -->|Webhook HTTPS| Proxy
+    Proxy --> Static["React UI static assets"]
     subgraph Private["Закрытая сеть приложения"]
-        API["FastAPI API"]
+        Proxy --> API["FastAPI API"]
         API --> DB[("PostgreSQL")]
         API --> Cache[("Redis")]
         Dispatch["Dispatcher и recovery"] --> DB
         Dispatch --> MQ["RabbitMQ"]
-        MQ --> Worker["Celery worker"]
-        Worker --> DB
-        Worker --> Cache
-        Worker --> LLM["Ollama"]
+        MQ --> AnalyzeWorker["Analyze worker"]
+        MQ --> PublishWorker["Publish worker"]
+        AnalyzeWorker --> DB
+        AnalyzeWorker --> Cache
+        AnalyzeWorker --> LLM["Ollama"]
+        PublishWorker --> DB
     end
-    UI --> API
-    GH["GitHub API и webhooks"] --> API
     API --> GH
-    Worker --> GH
+    AnalyzeWorker --> GH
+    PublishWorker --> GH
 ```
 
 API имеет публичный HTTPS-вход через reverse proxy, но БД, брокер и Ollama наружу не выставляются. Статика UI и `/api` обслуживаются с одного origin. GitHub — внешняя система; модель в Ollama работает в контролируемой командой инфраструктуре.
@@ -79,13 +85,13 @@ API имеет публичный HTTPS-вход через reverse proxy, но 
 | React UI | Список доступных репозиториев/PR, запуск, история, прогресс, diff и замечания | Не хранит VCS/LLM-секреты, не собирает LLM-контекст и не определяет права |
 | FastAPI API | Аутентификация, авторизация, webhooks, admission control, пользовательский API | Не выполняет длительное ревью внутри HTTP-запроса |
 | Dispatcher / recovery | Доставка outbox, отложенные повторы, восстановление зависших задач, очистка по TTL | Не анализирует код |
-| Celery worker | Оркестрация ревью и отдельного этапа публикации | Не считает очередь источником состояния |
+| Celery workers | Analyze worker оркестрирует ревью; publish worker выполняет отдельный этап публикации | Не считают очередь источником состояния |
 | PostgreSQL | Запуски, результаты, права/настройки, outbox, leases, квоты и сохранённый контекст | Не используется как бессрочное хранилище исходников |
 | Redis | Rate limiting и горячий TTL-кэш blob/извлечённого контекста | Не хранит задания, результаты, квоты, idempotency records или correctness-critical locks |
 | RabbitMQ | Доставка небольших фоновых задач с подтверждениями | Не хранит весь diff, промпт или итоговый результат |
 | Ollama | Инференс выбранной модели | Не имеет доступа к VCS, БД и секретам приложения |
 
-API, worker и dispatcher — процессы одного backend-проекта с общей доменной моделью и образом приложения. Логические модули не выделяются в самостоятельные микросервисы. Celery использует RabbitMQ как брокер; отдельный Celery result backend не нужен — состояние находится в PostgreSQL. Redis имеет только ускоряющую/ограничивающую роль и может быть очищен без потери доменного состояния.
+API, worker и dispatcher — процессы одного backend-проекта с общей доменной моделью и образом приложения. Логические модули не выделяются в самостоятельные микросервисы. Celery использует RabbitMQ как брокер; отдельный Celery result backend не нужен — состояние находится в PostgreSQL. Redis обязателен в v1 для admission control новых запусков, но имеет только ускоряющую/ограничивающую роль и может быть очищен без потери доменного состояния. При его недоступности сохранённые результаты продолжают читаться из PostgreSQL.
 
 ### Внутренние компоненты backend
 
@@ -115,17 +121,18 @@ sequenceDiagram
     participant API as API
     participant DB as PostgreSQL
     participant Worker as Dispatcher / worker
-    participant Ext as GitHub / Ollama
+    participant GH as GitHub
+    participant LLM as Ollama
     Source->>API: Запрос ревью
     API->>API: Подлинность, доступ, квота, дедупликация
     API->>DB: Транзакция: ReviewJob + OutboxEvent
     API-->>Source: Принято; review_id для UI
     Worker->>DB: Outbox → доставка; захват задачи
-    Worker->>Ext: Снимок PR и контекст по SHA
-    Worker->>Ext: Ограниченные вызовы модели
+    Worker->>GH: Снимок PR и blobs по SHA
+    Worker->>LLM: Ограниченные вызовы модели
     Worker->>DB: Проверенные результаты и покрытие
     Worker->>DB: Outbox публикации
-    Worker->>Ext: Проверка актуальности; публикация
+    Worker->>GH: Проверка актуальности; публикация
     Worker->>DB: Итог публикации
     Source->>API: Получить статус и результаты
 ```
@@ -152,6 +159,39 @@ sequenceDiagram
 
 `publication_status` независим: `NOT_READY`, `PENDING`, `PUBLISHED`, `PARTIAL`, `FAILED`, `UNKNOWN`, `SKIPPED`. Анализ может быть `COMPLETED`, а публикация — `FAILED`. Результаты `PARTIAL` публикуются только со столь же явной пометкой неполноты; для `FAILED/SKIPPED` комментарии не создаются.
 
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED
+    QUEUED --> RUNNING: задача захвачена
+    QUEUED --> SKIPPED: истёк срок ожидания
+    RUNNING --> RUNNING: retry_at после временной ошибки
+    RUNNING --> COMPLETED: полное покрытие
+    RUNNING --> PARTIAL: есть результат и неполное покрытие
+    RUNNING --> FAILED: пригодного результата нет
+    RUNNING --> SKIPPED: снимок устарел / PR закрыт
+    COMPLETED --> [*]
+    PARTIAL --> [*]
+    FAILED --> [*]
+    SKIPPED --> [*]
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> NOT_READY
+    NOT_READY --> PENDING: анализ COMPLETED/PARTIAL
+    NOT_READY --> SKIPPED: анализ FAILED/SKIPPED
+    PENDING --> PUBLISHED: вся публикация подтверждена
+    PENDING --> PARTIAL: подтверждена только часть
+    PENDING --> FAILED: подтверждён отказ без remote result
+    PENDING --> UNKNOWN: исход внешней записи неизвестен
+    FAILED --> PENDING: разрешён ручной retry
+    UNKNOWN --> PUBLISHED: оператор нашёл полный результат
+    UNKNOWN --> PARTIAL: оператор нашёл часть результата
+    UNKNOWN --> FAILED: оператор подтвердил отсутствие
+```
+
+`UNKNOWN` останавливает автоматические повторы до операторской сверки, но не является необратимым terminal-состоянием. Допустимые переходы, их причины и fencing token фиксируются как `ReviewEvent`.
+
 Повтор доставки задачи продолжает тот же запуск. Явное «Повторить ревью» создаёт новый запуск с `rerun_of`; автоматическое переоткрытие terminal-состояния не допускается. Новый push сам по себе не запускает анализ в предлагаемой v1.
 
 ## 5. VCS-интеграция и неизменяемый снимок
@@ -167,9 +207,23 @@ GitHub подключается через GitHub App с доступом тол
 | Опубликовать review | Снимок, сводка, валидные замечания, marker | Remote review/comment IDs либо типизированная ошибка |
 | Сверить публикацию | PR и marker | Найденные объекты либо неопределённый результат |
 
-`Snapshot` содержит `base_repository_id`, `head_repository_id`, `base_sha` (вершина target), `merge_base_sha` (общий предок), `head_sha`, `captured_at`. Ревью рассматривает изменения `merge_base_sha…head_sha`. Старое содержимое берётся по merge-base, новое — по head; для fork учитывается отдельный source repository. Читаются только явно доступные установке репозитории. Отсутствующий доступ — явная ошибка, а не повод читать другую ветку.
+`Snapshot` содержит `base_repository_id`, `head_repository_id`, `base_sha` (вершина target), `merge_base_sha` (общий предок), `head_sha`, `captured_at` и provider-specific идентификатор версии diff. Ревью рассматривает изменения `merge_base_sha…head_sha`. Старое содержимое берётся по merge-base, новое — по head; для fork учитывается отдельный source repository.
+
+Для fork PR адаптер сначала читает metadata, список файлов и patch через API base-репозитория, а head commit — через опубликованную GitHub ссылку PR `refs/pull/{number}/head`. Blob нового файла читается по `head_sha` через base-репозиторий, если GitHub делает commit доступным installation token. Прямое чтение source-репозитория разрешено только при явном доступе установки. Если полный blob по зафиксированному SHA недоступен, адаптер не подменяет его текущей веткой: уровень 1 сохраняется, недоступные уровни 2–4 отмечаются в coverage; если достоверного diff нет, запуск завершается `FAILED`. Этот сценарий проверяется интеграционным тестом на PR из приватного fork до заявления его поддержки.
 
 Пагинация обязательна. Отсутствующий/обрезанный provider patch не трактуется как пустой diff: адаптер восстанавливает его из blob фиксированных версий в пределах лимитов или возвращает неполноту. Если API diff опирается на текущее состояние PR, SHA проверяются до и после чтения; при изменении снимок не принимается. Во время повтора зафиксированный снимок не меняется. Все чтения кода идут по SHA, не по `HEAD`/имени ветки.
+
+Контракт адаптера остаётся provider-neutral на уровне домена, а provider-specific координаты хранятся в `Snapshot.provider_metadata` и `Publication`. Для будущего GitLab adapter используется следующее соответствие:
+
+| Доменное понятие | GitHub v1 | GitLab adapter |
+|---|---|---|
+| Change request | Pull Request number | Merge Request IID |
+| Обсуждения | review comments / reviews | discussions / notes |
+| Версия diff | base/merge-base/head SHA | diff version с base/start/head SHA |
+| Inline location | commit_id, path, side/line | position с base/start/head SHA, old/new path и line |
+| Общая публикация | review body с `event=COMMENT` | overview note/discussion с тем же marker |
+
+Реализация GitLab не входит в v1; таблица гарантирует, что общий интерфейс не теряет данные, необходимые второму адаптеру.
 
 Перед публикацией проверяются актуальные head и base SHA, открытое состояние PR, доступ приложения и сохранение прав инициатора. Устаревший результат остаётся в истории, но не публикуется. Изменение PR непосредственно после проверки полностью исключить нельзя: review дополнительно привязывается к `commit_id = head_sha`, и сводка явно называет снимок.
 
@@ -188,13 +242,142 @@ GitHub подключается через GitHub App с доступом тол
 | 3. Whole File | `FileContext`: path, side, commit SHA, text, changed_ranges | Новый файл целиком при размере до 300 строк и достаточном бюджете; для полностью удалённого — старая версия. Заменяет дублирующиеся окна, но не line map уровня 1 |
 | 4. AST / Imports | `RelatedSymbol`: qualified_name, kind, signature, path, commit SHA, range, import/reference, relation_to_change; небольшой source excerpt при необходимости | Из импортов и ссылок затронутых функций; глубина 1, до 20 символов из не более 10 связанных файлов на запуск. Не весь dependency graph |
 
+Нормативные JSON Schema хранятся вместе с backend-кодом в `schemas/context/v1.json` и `schemas/review-result/v1.json`; документ фиксирует их обязательную форму. Поля, не обозначенные как optional/nullable, обязательны; неизвестные поля v1 отклоняются. Ниже — сокращённый валидный пример одного `ContextPayload`, показывающий вложенность всех четырёх уровней:
+
+```json
+{
+  "schema_version": 1,
+  "review_id": "rev_01",
+  "chunk_id": "chunk_001",
+  "snapshot": {
+    "provider": "github",
+    "base_repository_id": "100",
+    "head_repository_id": "101",
+    "base_sha": "base-commit-sha",
+    "merge_base_sha": "merge-base-sha",
+    "head_sha": "head-commit-sha",
+    "captured_at": "2026-09-13T18:00:00Z",
+    "provider_metadata": {"pull_number": 42, "diff_version": "head-commit-sha"}
+  },
+  "metadata": {
+    "title": "Validate review payload",
+    "body": null,
+    "base_ref": "main",
+    "head_ref": "feature/review",
+    "commit_messages": ["Add payload validation"],
+    "languages": ["Python"],
+    "discussions": [],
+    "rules_version": "rules-v3",
+    "output_language": "ru"
+  },
+  "files": [
+    {
+      "diff": {
+        "file_id": "file_1",
+        "old_path": "src/review.py",
+        "new_path": "src/review.py",
+        "status": "modified",
+        "old_blob_sha": "old-blob-sha",
+        "new_blob_sha": "new-blob-sha",
+        "language": "Python",
+        "hunks": [{
+          "hunk_id": "hunk_1",
+          "old_start": 38,
+          "old_count": 1,
+          "new_start": 38,
+          "new_count": 2,
+          "lines": [
+            {"kind": "context", "text": "def validate(data):", "old_line": 38, "new_line": 38},
+            {"kind": "added", "text": "    return Schema.model_validate(data)", "old_line": null, "new_line": 39}
+          ]
+        }]
+      },
+      "source_windows": [{
+        "path": "src/review.py",
+        "side": "NEW",
+        "commit_sha": "head-commit-sha",
+        "start_line": 20,
+        "end_line": 55,
+        "text": "...",
+        "covered_hunk_ids": ["hunk_1"]
+      }],
+      "whole_file": {
+        "path": "src/review.py",
+        "side": "NEW",
+        "commit_sha": "head-commit-sha",
+        "text": "...",
+        "changed_ranges": [{"start_line": 39, "end_line": 39}]
+      }
+    }
+  ],
+  "related_symbols": [{
+    "qualified_name": "schemas.Schema",
+    "kind": "class",
+    "signature": "class Schema(BaseModel)",
+    "path": "src/schemas.py",
+    "commit_sha": "head-commit-sha",
+    "range": {"start_line": 10, "end_line": 24},
+    "relation": "import",
+    "relation_to_change": "called_by_changed_code",
+    "source_excerpt": "class Schema(BaseModel): ..."
+  }],
+  "coverage": {
+    "included": [{"path": "src/review.py", "ranges": [{"start_line": 39, "end_line": 39}]}],
+    "skipped": [],
+    "context_quality": "full"
+  },
+  "budget": {
+    "estimated_input_tokens": 4200,
+    "reserved_output_tokens": 2000,
+    "limit_input_tokens": 10000
+  }
+}
+```
+
+`whole_file` может быть `null`; `source_windows` и `related_symbols` могут быть пустыми. `coverage.skipped[].reason` использует фиксированный enum: `policy`, `unsupported_language`, `unavailable_blob`, `provider_truncated`, `token_budget`, `file_limit`, `line_limit`, `context_error`. Схема является контрактом worker ↔ LLM gateway и QA; frontend получает проекции diff, coverage и findings через API, а не весь prompt payload.
+
+| Поле / тип | Ограничение v1 |
+|---|---|
+| `schema_version: integer` | Только `1` |
+| IDs, paths, refs, SHA, text: `string` | IDs непрозрачны; path относительный и нормализованный; SHA не заменяется именем ветки |
+| `files: FileContext[]` | Не пуст для анализируемого чанка; каждый элемент всегда содержит `diff` и `source_windows` |
+| `FileDiff.status: string` | `added`, `modified`, `deleted`, `renamed` |
+| `HunkLine.kind: string` | `added`, `deleted`, `context`; `old_line/new_line` имеют тип `integer >= 1 | null` согласно стороне строки |
+| `side: string` | Только `OLD` или `NEW` |
+| `whole_file: object | null` | Поле обязательно, значение `null`, если уровень 3 не включён |
+| ranges и counts: `integer` | Номера строк от 1, counts от 0, start ≤ end |
+| `coverage.context_quality: string` | `full`, `degraded`, `diff_only` |
+| token budget: `integer` | Неотрицательные значения; estimated input не превышает установленный лимит после финальной сборки |
+
 AST-парсер (решение v1: Tree-sitter для Python и TypeScript/TSX) находит синтаксические узлы, но сам по себе не разрешает импорты. Отдельный resolver поддерживает локальные Python-модули и относительные TS-импорты. Неразрешённые alias, динамические импорты и внешние библиотеки помечаются `unresolved`; сигнатуры для них не выдумываются. Расширение на TS path aliases/сложные monorepo — отдельная задача после базового контура.
 
 ### Отбор и budgeting
 
-1. Исключить бинарные, generated/minified и lock-файлы по централизованной политике; применить проектные ignore-globs. В v1 правила/исключения хранятся в настройках репозитория, версионируются и изменяются только уполномоченным оператором. Формат `.gitlab/duo-ignore` не считается подтверждённым стандартом или обязательным интерфейсом нашего проекта.
-2. Приоритет — изменённый исполняемый код, затем конфигурация, затем документация. Изменения конфигурации не считаются безопасными по умолчанию.
-3. Чанк строится по файлу/функции; слишком большой блок разбивается по hunks, а слишком большой hunk — на последовательные диапазоны строк с сохранением исходной line map. Один изменённый диапазон имеет один основной чанк; контекст может повторяться.
+```mermaid
+flowchart LR
+    Diff["Snapshot diff"] --> Filter["Фильтрация и ignore policy"]
+    Filter --> Priority["Приоритизация изменений"]
+    Priority --> Chunks["Группировка и chunking"]
+    Chunks --> L2["L2: windows / function"]
+    Chunks --> L3["L3: whole file"]
+    Chunks --> L4["L4: symbols / imports"]
+    BlobCache[("Redis blob cache")] <--> L2
+    BlobCache <--> L3
+    BlobCache <--> L4
+    L2 --> Budget["Deduplication и token budget"]
+    L3 --> Budget
+    L4 --> Budget
+    Filter --> Coverage["Coverage + skip reasons"]
+    Chunks --> Coverage
+    Budget --> Coverage
+    Budget --> Payload["ContextPayload per chunk"]
+    Coverage --> Payload
+    Payload --> Store[("PostgreSQL snapshot")]
+```
+
+1. Исключить бинарные, generated/minified и lock-файлы по централизованной политике; применить проектные ignore-globs. Начальная политика исключает бинарные файлы, `*.lock`, известные lock-файлы (`package-lock.json`, `pnpm-lock.yaml`, `poetry.lock`), `*.min.js`, `*.min.css`, `dist/**`, `vendor/**`, `*.snap`, `*_pb2.py`, `*.pb.go` и файлы с распознанным generated-header. Миграции не исключаются автоматически: они могут менять данные и схему. Политика и repository overrides имеют версию; изменение доступно только роли `admin`, а итоговая версия фиксируется в запуске. Формат `.gitlab/duo-ignore` не считается подтверждённым стандартом или обязательным интерфейсом нашего проекта.
+2. Приоритет — изменённый исполняемый код, затем конфигурация, затем документация. Изменения конфигурации не считаются безопасными по умолчанию. `surrounding_lines=30` — конфигурируемый staging default; значение фиксируется в snapshot запуска и входит в ключ производного кэша.
+3. Чанк строится по файлу/функции; изменения нескольких небольших файлов одного приоритета могут упаковываться в один чанк в стабильном порядке path/hunk. Слишком большой блок разбивается по hunks, а слишком большой hunk — на последовательные диапазоны строк с сохранением исходной line map. Один изменённый диапазон имеет один основной чанк; контекст может повторяться.
 4. Сначала резервируются системные инструкции, diff, локальный контекст и ответ модели. Затем добавляются whole-file и связанные символы по релевантности. Дублирующийся текст уровней 2–4 удаляется.
 5. При нехватке бюджета сначала убирается низкоприоритетный дополнительный контекст, затем изменения переносятся в следующий чанк. Превышение общего лимита означает явное неполное покрытие, а не скрытое усечение.
 
@@ -211,6 +394,10 @@ AST-парсер (решение v1: Tree-sitter для Python и TypeScript/TSX
 ## 7. Контракт LLM и проверка результата
 
 Gateway принимает `ContextPayload`, идентификатор/версию модели, `prompt_version`, настройки генерации и максимальный размер ответа. Возвращает структурированный `ReviewChunkResult`: `schema_version`, `chunk_id`, краткую сводку, список `findings`, предупреждения об ограничениях и доступные usage/latency. Провайдерский raw response не передаётся напрямую frontend.
+
+Gateway передаёт JSON Schema `ReviewChunkResult` в поле Ollama `format` и ту же схему кратко описывает в prompt. Температура v1 — `0`; ответ затем независимо валидируется backend-схемой и доменными проверками ниже. Поддержка structured output проверяется для конкретной модели/digest до её допуска в конфигурацию. Наличие JSON Schema гарантирует форму ответа, но не истинность finding.
+
+Версионированные prompt-артефакты находятся в backend-репозитории под `.agents/reviewer/`: manifest связывает `prompt_version` с файлами и их SHA-256. Доверенные repository rules хранятся в PostgreSQL как неизменяемая версия. При создании `ReviewJob` backend разрешает версии в точное содержимое, сохраняет их digest и snapshot применённых инструкций/правил; retry использует этот snapshot, поэтому deployment новой версии не меняет выполняющийся запуск. Prompt snapshot не отдаётся frontend и не пишется в operational logs.
 
 | Поле Finding от модели | Контракт |
 |---|---|
@@ -229,7 +416,23 @@ Gateway принимает `ContextPayload`, идентификатор/верс
 
 ## 8. Публикация, повторы и актуальность
 
-Решение v1: один GitHub review на запуск с `event = COMMENT`, общей сводкой и максимум 20 inline-замечаниями, отсортированными по severity и стабильному местоположению. Остальные проверенные findings доступны в UI; сводка сообщает об ограничении публикации. Сводка содержит head SHA, полноту покрытия, ограничения, ссылку на запуск и стабильный marker `review_id`. Бот не выставляет `APPROVE` или `REQUEST_CHANGES`. Используется явный `commit_id`; правила координат и права сверяются с [GitHub Pull request reviews API](https://docs.github.com/en/rest/pulls/reviews).
+Решение v1: один GitHub review на запуск с `event = COMMENT`, общей сводкой и максимум 20 inline-замечаниями, отсортированными по severity и стабильному местоположению. Остальные проверенные findings доступны в UI; сводка сообщает об ограничении публикации. Язык findings и сводки в v1 — русский; идентификаторы, пути и фрагменты кода не переводятся. Язык входит в snapshot конфигурации запуска. Бот не выставляет `APPROVE` или `REQUEST_CHANGES`. Используется явный `commit_id`; правила координат и права сверяются с [GitHub Pull request reviews API](https://docs.github.com/en/rest/pulls/reviews).
+
+Нормативный каркас сводки:
+
+```markdown
+<!-- larchanka-ai-review:review_id=rev_01;head_sha=<sha>;schema=1 -->
+## AI code review
+
+Снимок: `<head_sha>` · Покрытие: `<reviewed>/<eligible>` · Статус: `<COMPLETED|PARTIAL>`
+
+<Краткая сводка и severity counts>
+
+Ограничения: <нет либо причины неполного покрытия>
+[Открыть сохранённый результат](<review_url>)
+```
+
+Marker располагается первой строкой review body и совпадает только при полном разборе его полей; пользовательский текст PR не интерпретируется как marker. `review_url` строится из доверенной конфигурации приложения.
 
 Перед отправкой Publisher резервирует lease для конкретного PR, проверяет актуальность снимка и ищет уже созданный review по marker и автору-приложению. Remote IDs сохраняются. Повтор публикации не создаёт новый `ReviewJob` и не вызывает модель. Публикация другого запуска не редактирует сводку старого: история остаётся привязанной к своему снимку.
 
@@ -248,15 +451,37 @@ Gateway принимает `ContextPayload`, идентификатор/верс
 | Сообщение очереди | schema_version, event_id, review_id, task_kind `analyze/publish`, attempt, trace_id. Без токенов, исходников, промптов и сериализованных Python-объектов |
 | Worker lease | Атомарный захват по review_id/task_kind, owner, expiry и возрастающий fencing token. Запись результатов принимается только от актуального владельца |
 
+`schema_version` — положительное целое число версии прикладного payload. В Celery task передаётся один JSON-совместимый объект в `kwargs.payload`; pickle и иные исполняемые форматы запрещены. Примеры payload одинаковы по форме для обоих видов задач:
+
+```json
+{"schema_version": 1, "event_id": "evt_01", "review_id": "rev_01", "task_kind": "analyze", "attempt": 1, "trace_id": "req_01"}
+```
+
+```json
+{"schema_version": 1, "event_id": "evt_02", "review_id": "rev_01", "task_kind": "publish", "attempt": 1, "trace_id": "req_01"}
+```
+
+Версия `1` принимает payload v1. Добавление optional-полей обратно совместимо и не меняет major version; consumer v1 игнорирует неизвестные optional-поля. Удаление, переименование или изменение смысла поля требует новой major version и отдельного consumer. Неизвестная версия, неизвестный `task_kind`, отсутствие обязательного поля или неверный тип не выполняются и направляются в `review.dead` с безопасным кодом причины. Quarantine payload не содержит исходники и секреты.
+
+| RabbitMQ / Celery параметр | Решение v1 |
+|---|---|
+| Exchange | durable direct exchange `reviews` |
+| Routing | `review.analyze` → durable queue `review.analyze`; `review.publish` → durable queue `review.publish`; `review.dead` → durable queue `review.dead` |
+| Доставка | persistent messages, publisher confirms, manual late ack после устойчивого решения |
+| Сериализация и размер | JSON; прикладной payload ≤ 16 KiB, всё крупное читается по `review_id` из PostgreSQL |
+| Expiration | message expiration 20 минут; истёкшая доставка не завершает job — recovery сверяет deadline и создаёт новую доставку только когда она ещё допустима |
+| Потребление | analyze worker: `prefetch_count=1`, concurrency=1; publish worker: `prefetch_count=4`, concurrency=4 |
+| Quarantine | приложение явно публикует диагностический envelope по routing key `review.dead`; автоматический replay отсутствует |
+
 Dispatcher читает pending outbox с блокировкой выбранных строк, публикует persistent messages в durable RabbitMQ queues с publisher confirms. Падение после отправки, но до отметки в БД создаёт допустимый повтор. Worker проверяет состояние соответствующего этапа и lease: завершённый анализ не отменяет ожидающую публикацию. Повторная доставка не порождает второй анализ. Потеря сообщения после принятия брокером обнаруживается recovery по отсутствию живого lease/прогресса и приводит к новой outbox-доставке.
 
 Используются очереди `review.analyze`, `review.publish` и карантин `review.dead`. Отдельная публикационная очередь позволяет не ждать медленного инференса. Поздний ack выполняется после сохранения результата или устойчивого решения о повторе. Поведение при гибели worker настраивается явно; один `acks_late` не гарантирует все сценарии redelivery — см. [Celery tasks](https://docs.celeryq.dev/en/stable/userguide/tasks.html).
 
-Единственный владелец политики retry — прикладной слой и dispatcher: попытки и `retry_at` хранятся в БД. Celery autoretry поверх этого не используется. Recovery раз в 30 секунд проверяет просроченные leases, недоставленные события и дедлайны. Heartbeat — каждые 15 секунд, lease — 90 секунд; они обновляются независимо от ожидания LLM. После потери lease worker не сохраняет результаты и не начинает внешние записи.
+Единственный владелец политики retry — прикладной слой и dispatcher: попытки и `retry_at` хранятся в БД. Celery autoretry поверх этого не используется. Recovery раз в 30 секунд проверяет просроченные leases, недоставленные события и дедлайны. Он не ставит задачу на повтор до `retry_at`, но даже при будущем `retry_at` завершает её, если общий дедлайн уже истёк. Повтор допускается только при отсутствии живого lease, наступившем `retry_at` и оставшемся бюджете/дедлайне. Heartbeat — каждые 15 секунд, lease — 90 секунд; они обновляются независимо от ожидания LLM. После потери lease worker не сохраняет результаты и не начинает внешние записи.
 
 До трёх попыток на этап для временных ошибок, с backoff/jitter и учётом `Retry-After`; бюджет и дедлайн запуска имеют приоритет. Невалидное сообщение или окончательно неуспешная задача направляется в карантин явной логикой приложения; не предполагается, что Celery автоматически переносит любой exception в RabbitMQ DLQ. Повтор из карантина — действие оператора после выяснения причины.
 
-Глобальная параллельность инференса начинается с 1. Долговременная квота и лимит активных работ атомарно резервируются в PostgreSQL; Redis хранит только короткие rate-limit counters для защиты HTTP/webhook-входа. Увеличение числа API/worker не обходит ограничения. Внешний вызов нельзя откатить fencing token: после потери lease публикация всё равно требует сверки удалённого результата по разделу 8.
+Параллельность инференса во всём deployment v1 равна 1: запускается один analyze worker с concurrency=1 и prefetch=1. Поэтому отдельный распределённый semaphore для Ollama в начальной топологии не нужен. Перед горизонтальным масштабированием workers лимит переносится в атомарно резервируемый PostgreSQL lease/semaphore; лимит «на процесс» недостаточен. Долговременная квота и лимит активных работ атомарно резервируются в PostgreSQL; Redis хранит только короткие rate-limit counters для защиты HTTP/webhook-входа. Увеличение числа API не обходит ограничения. Внешний вызов нельзя откатить fencing token: после потери lease публикация всё равно требует сверки удалённого результата по разделу 8.
 
 ## 10. Данные и хранение
 
@@ -272,7 +497,7 @@ Dispatcher читает pending outbox с блокировкой выбранн�
 | Publication | review_id, payload hash, marker, remote IDs по объектам, status, attempt, error; связь с Finding для inline-комментариев |
 | OutboxEvent / TaskLease | Доставка, due_at/attempt; owner/expiry/fencing token для задачи и публикации PR |
 | WebhookReceipt / IdempotencyRecord | Внешний delivery ID либо клиентский ключ, request hash и review_id |
-| QuotaUsage | Атомарные резервы и счётчики использованного лимита в PostgreSQL |
+| QuotaUsage | Счётчики новых запусков за часовое окно в области user + repository и резервы активных запусков в области repository. Единицы — `starts` и `active_jobs`; retry того же ReviewJob повторно их не списывает |
 
 Источник истины — PostgreSQL; JSONB подходит для версионированного контекста, coverage и provider metadata, но идентификаторы, состояния, ограничения уникальности и связи остаются отдельными полями. Миграции выполняются Alembic. Настройки и версии фиксируются при создании запуска; worker не подхватывает обновлённые правила или промпт посреди работы. Метаданные PR и обсуждения сохраняются при сборке контекста, повтор использует сохранённый пакет. Квота резервируется один раз на запуск, retry не создаёт новый резерв; возврат неиспользованного резерва тоже идемпотентен. Отдельный денежный баланс в модели v1 отсутствует.
 
@@ -289,6 +514,8 @@ HTTP JSON API с префиксом `/api/v1`; OpenAPI — источник ти
 | GET `/me` | Пользователь, разрешённые действия |
 | GET `/repositories` | Только доступные подключённые репозитории |
 | GET `/repositories/{id}/pull-requests` | Доступные PR с текущими SHA и статусом |
+| GET `/repositories/{id}/settings` | Текущие правила, ignore-globs, квоты, output language и `version`; требуется роль `admin` |
+| PUT `/repositories/{id}/settings` | Полная замена валидированной конфигурации с `If-Match: <version>`; новая неизменяемая версия, 409 при конфликте; требуется роль `admin` |
 | POST `/repositories/{id}/pull-requests/{number}/reviews` | requested_head_sha, optional rerun_of; заголовок Idempotency-Key. Новый запуск — 202 + review_id/status URL; повтор — прежний ресурс |
 | GET `/repositories/{id}/reviews` | История запусков, фильтры по PR/статусу |
 | GET `/reviews/{id}` | Снимок, stage/status, chunk counts, summary, coverage, usage, timestamps, publication_status, безопасная ошибка |
@@ -296,10 +523,13 @@ HTTP JSON API с префиксом `/api/v1`; OpenAPI — источник ти
 | GET `/reviews/{id}/diff` | Сохранённые hunks/line map снимка, без LLM-промпта; 410 после истечения retention |
 | GET `/reviews/{id}/events` | Краткие события этапов для журнала UI; не chain-of-thought модели |
 | POST `/reviews/{id}/publication-retries` | Idempotency-Key; новый цикл публикации только для FAILED с подтверждённым отсутствием remote review. Для UNKNOWN, PARTIAL или устаревшего снимка — 409 |
+| POST `/webhooks/github` | Интеграционный вход GitHub; подпись проверяется по raw body, delivery ID дедуплицируется; пользовательский JWT не используется |
+
+В таблице пути указаны относительно `/api/v1`. Эксплуатационные `GET /healthcheck` и `GET /readiness` намеренно находятся вне versioned API: это probes deployment, а не пользовательские ресурсы.
 
 Списки используют cursor pagination, limit по умолчанию 20, максимум 100. Время — UTC ISO 8601; внутренние ID — непрозрачные строки. Ошибка содержит `code`, безопасное `message`, `request_id`, `retryable` и при необходимости `retry_after`; stack trace/секреты не возвращаются. 401 — нет сессии; 403 — нет разрешения; 404 — ресурс недоступен/не существует; 409 — конфликт версии/состояния; 422 — невалидный ввод; 429 — квота; 503 — временно недоступен обязательный компонент при приёме запроса.
 
-UI опрашивает активный запуск раз в 3 секунды, увеличивает интервал до 15 секунд при длительном ожидании/ошибках, приостанавливает опрос в неактивной вкладке. Опрос прекращается, когда анализ terminal и публикация не `PENDING/NOT_READY`. Для `FAILED/SKIPPED` анализа публикация сразу `SKIPPED`. WebSocket/SSE в v1 не требуются. Состояния «нет замечаний», «неполное ревью» и «публикация не удалась» визуально различаются.
+UI опрашивает активный запуск раз в 3 секунды, увеличивает интервал до 15 секунд при длительном ожидании/ошибках, приостанавливает опрос в неактивной вкладке. Опрос прекращается, когда анализ terminal и публикация не `PENDING/NOT_READY`. Для `FAILED/SKIPPED` анализа публикация сразу `SKIPPED`. При 401 UI прекращает polling, сохраняет безопасный return URL, проводит пользователя через GitHub OAuth заново и после успешного входа возвращается к тому же `review_id`; фоновой запуск от UI-сессии не зависит. WebSocket/SSE в v1 не требуются. Состояния «нет замечаний», «неполное ревью» и «публикация не удалась» визуально различаются.
 
 ## 12. Безопасность и доступ
 
@@ -339,20 +569,20 @@ UI опрашивает активный запуск раз в 3 секунды
 |---|---|
 | Приём webhook | p95 ≤ 1 секунды при доступной БД; без чтения кода и инференса |
 | Обычные чтения нашего API | p95 ≤ 500 мс для данных из БД; обращения к GitHub измеряются отдельно |
-| Цель latency анализа | p95 ≤ 60 секунд без очереди для PR до 300 изменённых строк; измеряется от захвата задачи до проверенного результата, до публикации. Проверяется на выбранной модели и staging hardware |
+| Цель latency анализа | p95 ≤ 60 секунд без очереди для PR до 300 изменённых строк; измеряется от захвата задачи до сохранения проверенного результата. Ожидание в очереди и публикация не входят. Проверяется на выбранной модели и staging hardware |
 | Дедлайн | Ожидание начала ≤ 15 минут; анализ ≤ 10 минут от первого старта, включая retry; публикация ≤ 5 минут на цикл автоматических попыток. Разрешённый ручной повтор начинает новый публикационный цикл |
 | Admission | До 20 нетерминальных запусков на репозиторий; до 10 новых запусков за час на пользователя/репозиторий; 429 при превышении |
-| Размер анализируемых изменений | До 50 подходящих файлов и 2 000 добавленных/удалённых строк на запуск; остальные помечаются нерассмотренными |
+| Размер анализируемых изменений | До 50 подходящих файлов и 2 000 добавленных/удалённых строк на запуск; остальные помечаются нерассмотренными. Это admission ceiling, а не гарантия полного покрытия: токены, чанки и дедлайн могут дать `PARTIAL` и ниже этих значений |
 | Размер исходников | До 1 MiB на blob; до 10 MiB суммарного текста, загруженного для запуска; полный файл — до 300 строк при доступном бюджете |
 | Контекст модели | Требуется окно не менее 16 384 токенов; вход ≤ 10 000, ответ ≤ 2 000 на вызов, остальное — запас и служебные токены |
-| Общий бюджет модели | До 5 чанков; до 8 фактических запросов с учётом retry, в том числе не более одного format repair; до 80 000 входных и 16 000 выходных токенов на запуск |
+| Общий бюджет модели | До 5 чанков; до 8 фактических запросов с учётом retry, в том числе не более одного format repair; до 80 000 входных и 16 000 выходных токенов на запуск. Это независимые верхние границы, не обещание выполнить все 8 запросов |
 | Таймаут одного обращения | VCS — 15 секунд; Ollama — 120 секунд; меньший оставшийся дедлайн имеет приоритет |
 | Публикация | До 20 inline-замечаний плюс сводка на запуск |
-| Параллельность | 1 инференс одновременно на инстанс в начальной конфигурации; публикация сериализована по PR |
+| Параллельность | Один analyze worker с concurrency=1: не более 1 инференса на весь deployment v1; публикация сериализована по PR |
 
-Бюджет учитывает и повторные запросы; при timeout с неизвестным usage резервируется максимально возможная стоимость вызова. На входе проверяется допустимость конфигурации модели; большие advertised context windows не отменяют лимиты приложения. Конкретная модель/её digest и параметры входят в снимок запуска.
+Бюджет учитывает и повторные запросы; при timeout с неизвестным usage резервируется максимально возможная стоимость вызова. На входе проверяется допустимость конфигурации модели; большие advertised context windows не отменяют лимиты приложения. Конкретная модель/её digest и параметры входят в снимок запуска. Для проверки latency QA/DevOps фиксируют модель и quantization, digest, CPU/GPU, RAM/VRAM, warm/cold состояние, размер входа/выхода и нагрузку. До такого замера 60 секунд остаются целью, а не гарантированным SLO.
 
-Продуктовые quality gates для фиксированного golden dataset: Precision опубликованных findings ≥ 85%, Critical Recall ≥ 75%, Hallucination Rate < 3%, соответствие **проверенных и публикуемых** результатов схеме — 100%. Метрики считаются только при размеченном ground truth, отдельно по версии модели/prompt/rules; данные разных версий не смешиваются. До первого репрезентативного прогона пороги являются критериями приёмки, а не заявлением о достигнутом качестве.
+Продуктовые quality gates для фиксированного golden dataset: Precision опубликованных findings ≥ 85%, Critical Recall ≥ 75%, Hallucination Rate < 3%, соответствие **проверенных и публикуемых** результатов схеме — 100%. Dataset включает Python и TypeScript/TSX, категории security/correctness/performance/maintainability, PR без дефектов, ложные приманки и случаи неполного контекста; critical recall считается только при достаточном числе размеченных critical cases. QA фиксирует состав, ground truth, формулы, минимальную статистически полезную выборку и запускает оценку при смене model/prompt/rules. Данные разных версий не смешиваются. До первого репрезентативного прогона пороги являются критериями приёмки, а не заявлением о достигнутом качестве.
 
 Мелкие замечания, которые надёжно закрывает линтер/форматтер, не входят в целевой Style Recall. В v1 бот публикует `COMMENT`, даже для `critical`; `APPROVE`, `REQUEST_CHANGES/BLOCK`, обязательные one-click suggestions и severity `info` не являются контрактом. Эти правила имеют приоритет при синхронизации `TEST_PLAN.md`.
 
@@ -364,11 +594,36 @@ UI опрашивает активный запуск раз в 3 секунды
 
 Целевое развёртывание v1: Docker Compose для локальной среды и отдельного staging в Hetzner. Reverse proxy выдаёт HTTPS и маршрутизирует UI/API; прямой внешний доступ к `8000` закрывается. API, worker и dispatcher собираются из backend-репозитория. PostgreSQL и RabbitMQ имеют persistent volumes, Redis остаётся эфемерным кэшем, Ollama использует отдельный volume модели и доступные вычислительные ресурсы. Публичные порты имеет только reverse proxy; административный доступ ограничен. Terraform постепенно фиксирует сеть/DNS/firewall либо документирует их как явно управляемые внешние ресурсы.
 
+```mermaid
+flowchart TB
+    Internet["Internet: user + GitHub"] -->|443 only| Proxy["Reverse proxy / TLS"]
+    subgraph Host["Staging host / Docker Compose"]
+        Proxy --> UI["UI static"]
+        Proxy --> API["FastAPI"]
+        subgraph Private["Private application network"]
+            API --> PG[("PostgreSQL\nvolume")]
+            API --> Redis[("Redis\nephemeral")]
+            MQ[("RabbitMQ\nvolume")]
+            Dispatcher["Dispatcher / recovery"] --> PG
+            Dispatcher --> MQ
+            MQ --> Analyze["Analyze worker x1"]
+            MQ --> Publish["Publish worker"]
+            Analyze --> PG
+            Analyze --> Redis
+            Analyze --> Ollama["Ollama\nmodel volume"]
+            Publish --> PG
+        end
+    end
+    API -->|HTTPS egress| GitHub["GitHub API"]
+    Analyze -->|HTTPS egress| GitHub
+    Publish -->|HTTPS egress| GitHub
+```
+
 Миграции Alembic выполняются отдельным шагом релиза до старта новой версии, не каждым worker. Изменения схем сообщений и payload обратно совместимы в пределах текущей версии; несовместимые сообщения уходят в карантин. При обновлении worker прекращает брать новые задачи, завершает текущие в пределах grace period либо оставляет восстановление lease-механизму. Версия образа приложения и digest модели фиксируются, secrets раздельны для local/staging.
 
 | Ответственный | Артефакт / граница |
 |---|---|
-| Нарек, Tech Lead | SYSTEM_DESIGN.md, согласование межкомпонентных контрактов и базовый AGENTS.md; последний не создаётся в рамках этой задачи |
+| Нарек, Tech Lead | `docs/SYSTEM_DESIGN.md`, согласование межкомпонентных контрактов и базовый AGENTS.md; последний не создаётся в рамках этой задачи |
 | Кирилл, backend architecture | BACKEND_ARCHITECTURE.md, модули FastAPI, ERD/миграции, прикладные сценарии и реализация приведённых контрактов |
 | Саша, backend base | Базовое Python/uv-окружение, инструменты качества, Docker/healthcheck совместно с DevOps |
 | Лёша, frontend architecture; Дима, frontend base | FRONTEND_ARCHITECTURE.md, структура UI и API-клиент, типы/состояния, стартовое React/TS-окружение |
