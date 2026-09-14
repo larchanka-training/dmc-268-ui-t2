@@ -5,6 +5,6 @@ Vite + React + TypeScript frontend for DMC-268 Team 2.
 ## Setup & Run
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
