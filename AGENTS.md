@@ -11,7 +11,7 @@ Always-on brief for coding agents. Longer procedures live in `.agents/skills/` (
 ## Phases
 
 1. **Align** — Scope empty or the user asks to stress-test a plan → `/grill-me` only. Do **not** open grilling on model whim.
-2. **Execute** — User gave go-ahead, or grill outcome / spec / tickets already exist in context → implement. On behaviour change, follow the `/tdd` procedure (red → green at agreed seams) without waiting for a second `/tdd` if they already said implement / approved the plan. If a test fails for a bad fixture/double (false red), fix the test and re-run to a **real** red before writing production code.
+2. **Execute** — User gave go-ahead, or grill outcome / spec / tickets already exist in context → implement. On behaviour change, follow the `/tdd` procedure (red → green at agreed seams) when a test runner exists for that seam — without waiting for a second `/tdd` if they already said implement / approved the plan. If a test fails for a bad fixture/double (false red), fix the test and re-run to a **real** red before writing production code. Until a UI test runner exists, do **not** invent a failing-test gate; use `npm run build` as the interim quality check (see **When behaviour changes**).
 3. **Close** — After the slice is green (or build gate if no test runner yet): load `.agents/skills/project-code-review/SKILL.md` and run its Process (pin range → quality commands → four axes with severity → merge blocked yes/no). One-line axis verdicts without that Process are not Close. Lint/build alone is not “reviewed.”
 
 ## No re-ask
@@ -32,7 +32,9 @@ Agreed lasting notes → team tracker (issue or PR). Session drafts → `.scratc
 
 ## When behaviour changes
 
-Write a failing test first, then the minimal code to pass it. Test through public APIs (exported functions / components), not private helpers. One small slice at a time. Before more production code, the next AC case at the seam must still fail (real red). If it is already green, the last green overshot — delete speculative code or split the slice. Reuse seams already agreed; full procedure: `.agents/skills/tdd/SKILL.md`.
+When a test runner exists for the seam under change: write a failing test first, then the minimal code to pass it. Test through public APIs (exported functions / components), not private helpers. One small slice at a time. Before more production code, the next AC case at the seam must still fail (real red). If it is already green, the last green overshot — delete speculative code or split the slice. Reuse seams already agreed; full procedure: `.agents/skills/tdd/SKILL.md`.
+
+**Until a UI test runner exists** (tracked: [`docs/follow-ups/add-vitest-hard-tdd-gate.md`](docs/follow-ups/add-vitest-hard-tdd-gate.md)): soft TDD — keep `/tdd` in the default-active matrix and follow its methodology where useful, but do **not** require a failing test that cannot be executed. Interim quality gate: `npm run build` (`tsc && vite build`).
 
 ## Stack
 
