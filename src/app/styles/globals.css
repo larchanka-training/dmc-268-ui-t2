@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 4%;
+
+    --primary: 240 6% 10%;
+    --primary-foreground: 0 0% 98%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 240 5% 65%;
+
+    --radius: 0.5rem;
+
+    /* Diff-специфичная палитра */
+    --diff-add-bg: 142 71% 93%;
+    --diff-add-fg: 142 72% 22%;
+    --diff-del-bg: 0 93% 94%;
+    --diff-del-fg: 0 65% 40%;
+    --diff-context-bg: 0 0% 100%;
+    --diff-gutter-bg: 240 5% 98%;
+  }
+
+  :root[data-theme='dark'] {
+    --background: 240 10% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 8% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 8% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 0 0% 95%;
+    --primary-foreground: 240 6% 10%;
+
+    --muted: 240 5% 16%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 240 5% 16%;
+    --accent-foreground: 0 0% 95%;
+
+    --destructive: 0 63% 40%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 240 5% 40%;
+
+    --diff-add-bg: 142 40% 16%;
+    --diff-add-fg: 142 60% 75%;
+    --diff-del-bg: 0 45% 18%;
+    --diff-del-fg: 0 70% 80%;
+    --diff-context-bg: 240 8% 10%;
+    --diff-gutter-bg: 240 8% 12%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --background: 240 10% 8%;
+      --foreground: 0 0% 95%;
+
+      --card: 240 8% 10%;
+      --card-foreground: 0 0% 95%;
+
+      --popover: 240 8% 10%;
+      --popover-foreground: 0 0% 95%;
+
+      --primary: 0 0% 95%;
+      --primary-foreground: 240 6% 10%;
+
+      --muted: 240 5% 16%;
+      --muted-foreground: 240 5% 65%;
+
+      --accent: 240 5% 16%;
+      --accent-foreground: 0 0% 95%;
+
+      --destructive: 0 63% 40%;
+      --destructive-foreground: 0 0% 98%;
+
+      --border: 240 5% 20%;
+      --input: 240 5% 20%;
+      --ring: 240 5% 40%;
+
+      --diff-add-bg: 142 40% 16%;
+      --diff-add-fg: 142 60% 75%;
+      --diff-del-bg: 0 45% 18%;
+      --diff-del-fg: 0 70% 80%;
+      --diff-context-bg: 240 8% 10%;
+      --diff-gutter-bg: 240 8% 12%;
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
