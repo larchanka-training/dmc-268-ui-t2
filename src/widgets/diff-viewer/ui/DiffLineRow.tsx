@@ -1,16 +1,7 @@
 import { Plus } from 'lucide-react'
 import type { DiffLine } from '@/entities/diff'
 import { cn } from '@/shared/lib/cn'
-
-export function getLineAnchor(line: DiffLine): { side: 'old' | 'new'; lineNumber: number } | null {
-  if (line.type === 'removed' && line.oldLineNumber != null) {
-    return { side: 'old', lineNumber: line.oldLineNumber }
-  }
-  if (line.newLineNumber != null) {
-    return { side: 'new', lineNumber: line.newLineNumber }
-  }
-  return null
-}
+import { getLineAnchor } from '@/widgets/diff-viewer/ui/get-line-anchor'
 
 const rowBgByType: Record<DiffLine['type'], string> = {
   added: 'bg-diff-add-bg',

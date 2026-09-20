@@ -3,25 +3,33 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": ">=12.0.0 <13.0.0",
-      "onFail": "download"
-    }  
+  "engines": {
+    "node": ">=24 <25"
   },
+  "packageManager": "pnpm@12.4.1",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
+    "lint:styles": "stylelint \"src/**/*.css\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "check-types": "tsc --noEmit",
-    "validate": "pnpm lint && pnpm check-types && pnpm build",
+    "validate": "pnpm lint && pnpm lint:styles && pnpm format:check && pnpm check-types && pnpm build",
     "prepare": "husky"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
-      "pnpm lint"
+      "eslint --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.css": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{json,html,yml,yaml,md}": [
+      "prettier --write"
     ]
   },
   "dependencies": {
@@ -40,23 +48,21 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^26.5.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.6.0",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.0",
+    "postcss": "^8.5.28",
     "prettier": "^3.9.6",
     "stylelint": "^17.15.0",
-    "@types/node": "^26.5.1",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.6.0",
-    "postcss": "^8.5.28",
+    "stylelint-config-standard": "^40.0.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.2.2",
     "typescript-eslint": "^8.70.0",
