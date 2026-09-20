@@ -17,7 +17,6 @@ interface AddReviewCommentState {
 export const useAddReviewCommentStore = create<AddReviewCommentState>((set) => ({
   draft: null,
   openComposer: (target) => set({ draft: { ...target, text: '' } }),
-  updateDraftText: (text) =>
-    set((state) => (state.draft ? { draft: { ...state.draft, text } } : state)),
+  updateDraftText: (text) => set((state) => (state.draft ? { draft: { ...state.draft, text } } : state)),
   closeComposer: () => set({ draft: null }),
 }))

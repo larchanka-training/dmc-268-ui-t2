@@ -6,7 +6,8 @@ import { useDiffContextQuery } from '@/entities/diff'
 import type { CommentDraft } from '@/features/add-review-comment'
 import { CommentComposer } from '@/features/add-review-comment'
 import { Button } from '@/shared/ui/button'
-import { DiffLineRow, getLineAnchor } from '@/widgets/diff-viewer/ui/DiffLineRow'
+import { DiffLineRow } from '@/widgets/diff-viewer/ui/DiffLineRow'
+import { getLineAnchor } from '@/widgets/diff-viewer/ui/get-line-anchor'
 
 function threadKey(side: 'old' | 'new', lineNumber: number) {
   return `${side}:${lineNumber}`

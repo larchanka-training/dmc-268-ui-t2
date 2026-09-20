@@ -32,9 +32,7 @@ export function CommentThread({ thread, className }: CommentThreadProps) {
   return (
     <div className={cn('rounded-md border border-border bg-card', className)}>
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-        <span className="text-xs font-medium text-muted-foreground">
-          Строка {thread.anchorLine.lineNumber}
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">Строка {thread.anchorLine.lineNumber}</span>
         {thread.status === 'resolved' ? (
           <Badge variant="success" className="gap-1">
             <CheckCircle2 className="h-3 w-3" />
