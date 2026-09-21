@@ -47,4 +47,4 @@ npm run dev
 npm run build # tsc && vite build
 ```
 
-Lint/format is not set up yet; use `npm run build` as the typecheck gate for now.
+Lint and typecheck are set up: `pnpm lint` (`eslint . --max-warnings 0`), `pnpm check-types` (`tsc --noEmit`), `pnpm validate` (lint → check-types → build). Test plan: [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md).
