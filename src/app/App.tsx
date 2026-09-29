@@ -1,10 +1,13 @@
+import { BrowserRouter } from 'react-router-dom'
 import { QueryProvider } from '@/app/providers/QueryProvider'
-import { ReviewPage } from '@/pages/review'
+import { AppRouter } from '@/app/router'
 
 export function App() {
   return (
     <QueryProvider>
-      <ReviewPage />
+      <BrowserRouter>
+        <AppRouter />
+      </BrowserRouter>
     </QueryProvider>
   )
 }
