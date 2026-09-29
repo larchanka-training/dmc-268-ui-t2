@@ -1,9 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/app/guards/RequireAuth'
 import { useMeQuery } from '@/entities/session'
+import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
-import { ReposPlaceholderPage } from '@/pages/repos'
+import { ReposPage } from '@/pages/repos'
+import { AppShell } from '@/widgets/app-shell'
 
 function RootRedirect() {
   const meQuery = useMeQuery()
@@ -23,20 +25,24 @@ function RootRedirect() {
   return <Navigate to="/login" replace />
 }
 
+function AuthenticatedShell() {
+  return (
+    <RequireAuth>
+      <AppShell />
+    </RequireAuth>
+  )
+}
+
 export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/callback" element={<OAuthCallbackPage />} />
-      <Route
-        path="/repos"
-        element={
-          <RequireAuth>
-            <ReposPlaceholderPage />
-          </RequireAuth>
-        }
-      />
+      <Route element={<AuthenticatedShell />}>
+        <Route path="/repos" element={<ReposPage />} />
+        <Route path="/repos/connect" element={<ConnectRepoPage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

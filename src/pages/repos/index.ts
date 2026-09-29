@@ -1,1 +1,1 @@
-export { ReposPlaceholderPage } from '@/pages/repos/ui/ReposPlaceholderPage'
+export { ReposPage } from '@/pages/repos/ui/ReposPage'
