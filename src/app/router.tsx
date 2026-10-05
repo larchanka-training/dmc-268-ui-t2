@@ -5,6 +5,7 @@ import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
 import { ReposPage } from '@/pages/repos'
+import { ReviewPage } from '@/pages/review'
 import { AppShell } from '@/widgets/app-shell'
 
 function RootRedirect() {
@@ -42,6 +43,7 @@ export function AppRouter() {
       <Route element={<AuthenticatedShell />}>
         <Route path="/repos" element={<ReposPage />} />
         <Route path="/repos/connect" element={<ConnectRepoPage />} />
+        <Route path="/review" element={<ReviewPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -23,6 +23,7 @@ export function AppShell() {
   const meQuery = useMeQuery()
   const me = meQuery.data
   const reposActive = location.pathname === '/repos' || location.pathname.startsWith('/repos/')
+  const reviewActive = location.pathname === '/review' || location.pathname.startsWith('/review/')
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -56,14 +57,18 @@ export function AppShell() {
           >
             Repos
           </NavLink>
-          <span
-            className="cursor-not-allowed rounded-md px-2 py-1.5 text-sm text-muted-foreground opacity-60"
-            aria-disabled="true"
-            title="Coming soon"
+          <NavLink
+            to="/review"
+            className={cn(
+              'rounded-md px-2 py-1.5 text-sm font-medium',
+              reviewActive
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+            )}
+            aria-current={reviewActive ? 'page' : undefined}
           >
             Reviews/PRs
-            <span className="mt-0.5 block text-xs font-normal">Coming soon</span>
-          </span>
+          </NavLink>
         </aside>
 
         <main className="min-w-0 flex-1 overflow-auto p-6">
