@@ -1,55 +1,71 @@
-import type { Repository } from '@/entities/repository'
+import type { AvailableRepositoryWire, RepositoryWire } from '@/entities/repository/model/types'
 
-/** Seed pool for MSW — fresh session has none connected. */
-export const MSW_AVAILABLE_SEED: Repository[] = [
+/** Seed pool for MSW — fresh session has none connected. external_id matches OpenAPI digit pattern. */
+export const MSW_AVAILABLE_SEED: AvailableRepositoryWire[] = [
   {
-    id: 'avail-1',
     provider: 'github',
-    externalId: 'gh-1001',
-    fullName: 'acme/payments-api',
-    defaultBranch: 'main',
+    external_id: '1001',
+    owner: 'acme',
+    name: 'payments-api',
   },
   {
-    id: 'avail-2',
     provider: 'github',
-    externalId: 'gh-1002',
-    fullName: 'acme/web-dashboard',
-    defaultBranch: 'main',
+    external_id: '1002',
+    owner: 'acme',
+    name: 'web-dashboard',
   },
   {
-    id: 'avail-3',
     provider: 'github',
-    externalId: 'gh-1003',
-    fullName: 'acme/worker-jobs',
-    defaultBranch: 'develop',
+    external_id: '1003',
+    owner: 'acme',
+    name: 'worker-jobs',
   },
 ]
 
-const connectedByExternalId = new Map<string, Repository>()
+const connectedByExternalId = new Map<string, RepositoryWire>()
 
-export function listConnectedRepositories(): Repository[] {
-  return Array.from(connectedByExternalId.values())
+function toConnectedWire(seed: AvailableRepositoryWire, role: 'reviewer' | 'admin' = 'reviewer'): RepositoryWire {
+  return {
+    id: `connected-${seed.external_id}`,
+    provider: 'github',
+    external_id: seed.external_id,
+    owner: seed.owner,
+    name: seed.name,
+    role,
+    capabilities: {
+      can_start_review: true,
+      can_manage_settings: role === 'admin',
+    },
+  }
 }
 
-export function listAvailableRepositories(): Repository[] {
+export function listConnectedRepositoryPage(): { items: RepositoryWire[]; next_cursor: null } {
+  return { items: Array.from(connectedByExternalId.values()), next_cursor: null }
+}
+
+export function listAvailableRepositoryPage(): { items: AvailableRepositoryWire[]; next_cursor: null } {
   const connectedIds = new Set(connectedByExternalId.keys())
-  return MSW_AVAILABLE_SEED.filter((repo) => !connectedIds.has(repo.externalId))
+  return {
+    items: MSW_AVAILABLE_SEED.filter((repo) => !connectedIds.has(repo.external_id)),
+    next_cursor: null,
+  }
 }
 
-export function connectRepositoryInStore(provider: string, externalId: string): Repository | 'conflict' | 'not_found' {
-  if (connectedByExternalId.has(externalId)) {
-    return 'conflict'
+export function connectRepositoryInStore(
+  provider: string,
+  externalId: string,
+): { status: 'created' | 'existing'; repository: RepositoryWire } | { status: 'not_found' } {
+  const existing = connectedByExternalId.get(externalId)
+  if (existing && existing.provider === provider) {
+    return { status: 'existing', repository: existing }
   }
-  const seed = MSW_AVAILABLE_SEED.find((repo) => repo.externalId === externalId && repo.provider === provider)
+  const seed = MSW_AVAILABLE_SEED.find((repo) => repo.external_id === externalId && repo.provider === provider)
   if (!seed) {
-    return 'not_found'
+    return { status: 'not_found' }
   }
-  const connected: Repository = {
-    ...seed,
-    id: `connected-${seed.externalId}`,
-  }
+  const connected = toConnectedWire(seed)
   connectedByExternalId.set(externalId, connected)
-  return connected
+  return { status: 'created', repository: connected }
 }
 
 /** Test/dev helper — not used by production UI. */

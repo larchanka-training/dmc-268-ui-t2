@@ -1,6 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { RepositoryHttpError, useAvailableRepositoriesQuery, useConnectRepositoryMutation } from '@/entities/repository'
-import type { VcsProvider } from '@/entities/session'
+import {
+  repositoryDisplayName,
+  RepositoryHttpError,
+  useAvailableRepositoriesQuery,
+  useConnectRepositoryMutation,
+} from '@/entities/repository'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 
@@ -9,9 +13,9 @@ export function ConnectRepoPanel() {
   const availableQuery = useAvailableRepositoriesQuery()
   const connectMutation = useConnectRepositoryMutation()
 
-  async function handleConnect(provider: VcsProvider, externalId: string) {
+  async function handleConnect(externalId: string) {
     try {
-      await connectMutation.mutateAsync({ provider, externalId })
+      await connectMutation.mutateAsync({ provider: 'github', externalId })
       navigate('/repos', { replace: true })
     } catch {
       // Error surfaced via connectMutation.isError below
@@ -31,10 +35,6 @@ export function ConnectRepoPanel() {
   }
 
   const available = availableQuery.data ?? []
-  const conflict =
-    connectMutation.isError &&
-    connectMutation.error instanceof RepositoryHttpError &&
-    connectMutation.error.status === 409
 
   return (
     <div className="space-y-4">
@@ -43,9 +43,9 @@ export function ConnectRepoPanel() {
       ) : (
         <ul className="divide-y divide-border border-y border-border">
           {available.map((repo) => (
-            <li key={repo.id} className="flex items-center justify-between gap-3 py-2.5">
+            <li key={`${repo.provider}:${repo.externalId}`} className="flex items-center justify-between gap-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium text-foreground">{repo.fullName}</span>
+                <span className="truncate text-sm font-medium text-foreground">{repositoryDisplayName(repo)}</span>
                 <Badge variant="secondary" className="capitalize">
                   {repo.provider}
                 </Badge>
@@ -54,7 +54,7 @@ export function ConnectRepoPanel() {
                 type="button"
                 size="sm"
                 disabled={connectMutation.isPending}
-                onClick={() => void handleConnect(repo.provider, repo.externalId)}
+                onClick={() => void handleConnect(repo.externalId)}
               >
                 Connect
               </Button>
@@ -63,14 +63,11 @@ export function ConnectRepoPanel() {
         </ul>
       )}
 
-      {conflict ? (
+      {connectMutation.isError ? (
         <p className="text-sm text-destructive" role="alert">
-          That repository is already connected.
-        </p>
-      ) : null}
-      {connectMutation.isError && !conflict ? (
-        <p className="text-sm text-destructive" role="alert">
-          Could not connect repository. Try again.
+          {connectMutation.error instanceof RepositoryHttpError && connectMutation.error.status === 503
+            ? 'Service unavailable. Try again later.'
+            : 'Could not connect repository. Try again.'}
         </p>
       ) : null}
     </div>

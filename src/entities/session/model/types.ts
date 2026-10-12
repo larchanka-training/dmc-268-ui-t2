@@ -2,17 +2,47 @@
 export type VcsProvider = 'github' | 'gitlab'
 
 /**
- * Typed auth contract sketch (SoT for FE + MSW until OpenAPI exists).
- * Paths under same-origin `/api/v1`:
- * - GET  /auth/github/start
- * - GET  /auth/github/callback
- * - POST /auth/logout
- * - GET  /me
+ * UI-facing `/me` after parsing OpenAPI wire (snake_case → camelCase).
+ * Wire SoT: API `openapi.yaml` schema `Me`.
  */
-export interface MeUser {
-  id: string
-  displayName: string
-  avatarUrl: string | null
-  provider: VcsProvider
-  capabilities: string[]
+export interface Me {
+  user: {
+    id: string
+    provider: string
+    externalId: string
+    login: string
+  }
+  session: {
+    expiresAt: string
+  }
+  csrfToken: string
+}
+
+/** OpenAPI `Me` JSON body. */
+export interface MeWire {
+  user: {
+    id: string
+    provider: string
+    external_id: string
+    login: string
+  }
+  session: {
+    expires_at: string
+  }
+  csrf_token: string
+}
+
+export function parseMe(wire: MeWire): Me {
+  return {
+    user: {
+      id: wire.user.id,
+      provider: wire.user.provider,
+      externalId: wire.user.external_id,
+      login: wire.user.login,
+    },
+    session: {
+      expiresAt: wire.session.expires_at,
+    },
+    csrfToken: wire.csrf_token,
+  }
 }

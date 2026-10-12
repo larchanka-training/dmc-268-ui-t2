@@ -6,7 +6,7 @@ import {
   RepositoryHttpError,
 } from '@/entities/repository/api/repository-client'
 import type { ConnectRepositoryBody } from '@/entities/repository/model/types'
-import { meQueryKey } from '@/entities/session'
+import { meQueryKey, type Me } from '@/entities/session'
 
 export const connectedRepositoriesQueryKey = ['repositories', 'connected'] as const
 export const availableRepositoriesQueryKey = ['repositories', 'available'] as const
@@ -66,8 +66,12 @@ export function useConnectRepositoryMutation() {
 
   return useMutation({
     mutationFn: async (body: ConnectRepositoryBody) => {
+      const me = queryClient.getQueryData<Me>(meQueryKey)
+      if (!me?.csrfToken) {
+        throw new RepositoryHttpError(401, 'Missing CSRF token')
+      }
       try {
-        return await connectRepository(body)
+        return await connectRepository(body, me.csrfToken)
       } catch (error) {
         await clearSessionIfUnauthorized(queryClient, error)
         throw error

@@ -1,15 +1,39 @@
-import type { MeUser } from '@/entities/session'
+import type { MeWire } from '@/entities/session/model/types'
 
-/** Cookie name for MSW session. Browser SW cannot set HttpOnly; SameSite=Lax matches Spec 01 intent. */
+/** Cookie name for MSW session. Browser SW cannot set HttpOnly; SameSite=Lax matches intent. */
 export const MSW_SESSION_COOKIE = 'dmc_session'
 export const MSW_OAUTH_STATE = 'msw-oauth-state'
+export const MSW_CSRF_TOKEN = 'msw-csrf-token'
 
-export const mockMeUser: MeUser = {
-  id: 'user-1',
-  displayName: 'Ada Lovelace',
-  avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4',
-  provider: 'github',
-  capabilities: ['repos:read'],
+/** Mutable session expiry for MSW refresh demos (ISO). */
+let mswExpiresAt = defaultExpiresAt()
+
+function defaultExpiresAt(): string {
+  return new Date(Date.now() + 30 * 60 * 1000).toISOString()
+}
+
+export function mockMeWire(): MeWire {
+  return {
+    user: {
+      id: 'user-1',
+      provider: 'github',
+      external_id: '1',
+      login: 'ada',
+    },
+    session: {
+      expires_at: mswExpiresAt,
+    },
+    csrf_token: MSW_CSRF_TOKEN,
+  }
+}
+
+export function extendMswSessionExpiry(minutes = 30): string {
+  mswExpiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString()
+  return mswExpiresAt
+}
+
+export function resetMswSessionExpiry(): void {
+  mswExpiresAt = defaultExpiresAt()
 }
 
 export function readSessionCookie(): string | undefined {
@@ -20,8 +44,10 @@ export function readSessionCookie(): string | undefined {
 
 export function setSessionCookie(): void {
   document.cookie = `${MSW_SESSION_COOKIE}=ok; Path=/; SameSite=Lax`
+  resetMswSessionExpiry()
 }
 
 export function clearSessionCookie(): void {
   document.cookie = `${MSW_SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`
+  resetMswSessionExpiry()
 }

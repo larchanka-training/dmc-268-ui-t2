@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { logoutSession, meQueryKey } from '@/entities/session'
+import { logoutSession, meQueryKey, type Me } from '@/entities/session'
 import { Button } from '@/shared/ui/button'
 
 export function LogoutButton() {
@@ -8,7 +8,8 @@ export function LogoutButton() {
   const queryClient = useQueryClient()
 
   async function handleLogout() {
-    await logoutSession()
+    const me = queryClient.getQueryData<Me>(meQueryKey)
+    await logoutSession(me?.csrfToken)
     navigate('/login', { replace: true })
     await queryClient.resetQueries({ queryKey: meQueryKey })
   }

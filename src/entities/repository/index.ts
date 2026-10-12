@@ -1,4 +1,10 @@
-export type { ConnectRepositoryBody, Repository } from '@/entities/repository/model/types'
+export type {
+  AvailableRepository,
+  ConnectRepositoryBody,
+  Repository,
+  RepositoryPage,
+} from '@/entities/repository/model/types'
+export { repositoryDisplayName } from '@/entities/repository/model/types'
 export {
   REPOSITORIES_PATH,
   REPOSITORIES_AVAILABLE_PATH,

@@ -1,21 +1,14 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogoutButton } from '@/features/logout'
 import { useMeQuery } from '@/entities/session'
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar'
+import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { cn } from '@/shared/lib/cn'
 
 const PRODUCT_NAME = 'Code Review'
 
-function meInitials(displayName: string | undefined): string {
-  if (!displayName) return '?'
-  return (
-    displayName
-      .split(/\s+/)
-      .map((part) => part[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase() || '?'
-  )
+function meInitials(login: string | undefined): string {
+  if (!login) return '?'
+  return login.slice(0, 2).toUpperCase()
 }
 
 export function AppShell() {
@@ -33,10 +26,9 @@ export function AppShell() {
           {me ? (
             <div className="flex items-center gap-2">
               <Avatar className="h-7 w-7">
-                {me.avatarUrl ? <AvatarImage src={me.avatarUrl} alt="" /> : null}
-                <AvatarFallback className="text-[10px]">{meInitials(me.displayName)}</AvatarFallback>
+                <AvatarFallback className="text-[10px]">{meInitials(me.user.login)}</AvatarFallback>
               </Avatar>
-              <span className="hidden text-sm text-foreground sm:inline">{me.displayName}</span>
+              <span className="hidden text-sm text-foreground sm:inline">{me.user.login}</span>
             </div>
           ) : null}
           <LogoutButton />
