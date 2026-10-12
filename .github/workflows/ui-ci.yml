@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
@@ -68,6 +69,9 @@ jobs:
       - name: Build UI image
         run: docker build -t dmc-268-ui-t2:${{ github.sha }} .
 
+      - name: Test GitHub webhook proxy
+        run: python3 -m unittest -v tests/test_nginx_webhook_proxy.py
+
   publish:
     name: Publish UI image
     runs-on: ubuntu-24.04
@@ -75,7 +79,9 @@ jobs:
     needs:
       - quality
       - docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
 
     permissions:
       contents: read
@@ -100,3 +106,18 @@ jobs:
 
       - name: Push immutable UI image
         run: docker push "${IMAGE_NAME}:sha-${GITHUB_SHA}"
+
+      - name: Trigger API deploy
+        env:
+          GH_TOKEN: ${{ secrets.API_DEPLOY_PAT }}
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main) environment=staging ;;
+            develop) environment=develop ;;
+            *) echo "Unexpected ref: ${GITHUB_REF_NAME}"; exit 1 ;;
+          esac
+          gh workflow run deploy-staging.yml \
+            --repo larchanka-training/dmc-268-api-t2 \
+            --ref main \
+            -f "environment=${environment}" \
+            -f "ui_sha=${GITHUB_SHA}"
