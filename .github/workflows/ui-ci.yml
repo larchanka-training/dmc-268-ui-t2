@@ -70,7 +70,7 @@ jobs:
         run: docker build -t dmc-268-ui-t2:${{ github.sha }} .
 
       - name: Test GitHub webhook proxy
-        run: python3 -m unittest -v tests/test_nginx_webhook_proxy.py
+        run: python3 -m unittest -v tests/test_nginx_webhook_proxy.py tests/test_nginx_review_stream.py
 
   publish:
     name: Publish UI image
