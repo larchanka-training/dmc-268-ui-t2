@@ -81,7 +81,7 @@ class NginxReviewStreamTest(unittest.TestCase):
                     ) as response:
                         if response.status == 204:
                             break
-                except urllib.error.URLError:
+                except (urllib.error.URLError, ConnectionError):
                     pass
                 time.sleep(0.1)
             else:
