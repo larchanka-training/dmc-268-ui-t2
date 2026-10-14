@@ -14,7 +14,11 @@ export interface ViewModeToggleProps {
 
 export function ViewModeToggle({ mode, onChange }: ViewModeToggleProps) {
   return (
-    <div role="group" aria-label="Режим отображения diff" className="inline-flex gap-1 rounded-md border border-border p-0.5">
+    <div
+      role="group"
+      aria-label="Режим отображения diff"
+      className="inline-flex gap-1 rounded-md border border-border p-0.5"
+    >
       {OPTIONS.map(({ mode: option, label, Icon }) => (
         <Button
           key={option}

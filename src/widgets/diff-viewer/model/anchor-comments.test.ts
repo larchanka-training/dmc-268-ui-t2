@@ -152,7 +152,11 @@ describe('anchorComments', () => {
   it('sorts out-of-diff lists by severity as well', () => {
     const cs = [comment({ line: 900, id: 'i' }), comment({ line: 901, id: 'c', severity: 'critical' })]
 
-    expect(anchorComments(files, cs).outOfDiffByFile.get('src/a.ts')?.map((x) => x.id)).toEqual(['c', 'i'])
+    expect(
+      anchorComments(files, cs)
+        .outOfDiffByFile.get('src/a.ts')
+        ?.map((x) => x.id),
+    ).toEqual(['c', 'i'])
   })
 
   it('loses no comment', () => {
@@ -164,9 +168,7 @@ describe('anchorComments', () => {
     ]
     const r = anchorComments(files, cs)
     const total =
-      [...r.byLine.values()].flat().length +
-      [...r.outOfDiffByFile.values()].flat().length +
-      r.orphans.length
+      [...r.byLine.values()].flat().length + [...r.outOfDiffByFile.values()].flat().length + r.orphans.length
 
     expect(total).toBe(cs.length)
   })

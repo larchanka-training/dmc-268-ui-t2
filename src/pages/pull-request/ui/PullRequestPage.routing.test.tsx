@@ -80,9 +80,7 @@ describe('routing: ?view=', () => {
     const { user, router } = renderWithRouter('/pulls/42?view=split')
     await title()
 
-    await user.click(
-      within(screen.getByTestId('file-list')).getByRole('link', { name: /old-helper\.ts/ }),
-    )
+    await user.click(within(screen.getByTestId('file-list')).getByRole('link', { name: /old-helper\.ts/ }))
 
     expect(router.state.location.hash).toBe('#file-src/legacy/old-helper.ts')
     expect(viewParam(router.state.location.search)).toBe('split')
@@ -151,7 +149,9 @@ describe('routing: severity counters jump to the first comment', () => {
     const { user, router } = renderWithRouter('/pulls/42')
     await title()
 
-    await user.click(within(screen.getByTestId('severity-summary')).getByRole('button', { name: new RegExp(severity, 'i') }))
+    await user.click(
+      within(screen.getByTestId('severity-summary')).getByRole('button', { name: new RegExp(severity, 'i') }),
+    )
 
     expect(router.state.location.hash).toBe(`#comment-${id}`)
     await waitFor(() => expect(toggleOf(id)).toHaveAttribute('aria-expanded', 'true'))

@@ -74,7 +74,9 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
       expect(row.getAttribute(attr)).toBe(String(comment.line))
     }
     expect(anchored).toBeGreaterThan(0)
-    expect(screen.getAllByTestId('out-of-diff-file').length + screen.getAllByTestId('out-of-diff-pr').length).toBeGreaterThanOrEqual(2)
+    expect(
+      screen.getAllByTestId('out-of-diff-file').length + screen.getAllByTestId('out-of-diff-pr').length,
+    ).toBeGreaterThanOrEqual(2)
   })
 
   it.each([

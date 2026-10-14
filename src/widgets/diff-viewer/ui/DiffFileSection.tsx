@@ -60,7 +60,10 @@ export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionPro
             onClick={() => toggle(file.path)}
             className="flex max-w-full items-center gap-2 rounded font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <ChevronDown aria-hidden="true" className={cn('h-4 w-4 shrink-0 transition-transform', collapsed && '-rotate-90')} />
+            <ChevronDown
+              aria-hidden="true"
+              className={cn('h-4 w-4 shrink-0 transition-transform', collapsed && '-rotate-90')}
+            />
             <span className="truncate">{file.path}</span>
           </button>
           {file.status === 'renamed' && file.oldPath && (
@@ -75,7 +78,10 @@ export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionPro
       {!collapsed && (
         <div id={bodyId}>
           {file.isBinary ? (
-            <p data-testid="binary-placeholder" className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+            <p
+              data-testid="binary-placeholder"
+              className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground"
+            >
               <FileWarning aria-hidden="true" className="h-4 w-4" />
               Бинарный файл изменён — содержимое не отображается
             </p>

@@ -54,7 +54,10 @@ export function PullRequestHeader({ pullRequest: pr, counts, onSelectSeverity }:
   return (
     <header className="space-y-3 border-b border-border pb-4">
       <h1 className="text-xl font-semibold">
-        {pr.title} <span data-testid="pr-number" className="font-normal text-muted-foreground">#{pr.number}</span>
+        {pr.title}{' '}
+        <span data-testid="pr-number" className="font-normal text-muted-foreground">
+          #{pr.number}
+        </span>
       </h1>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">

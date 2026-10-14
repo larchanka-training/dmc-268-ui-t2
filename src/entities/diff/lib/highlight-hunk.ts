@@ -28,8 +28,16 @@ export function highlightHunk(hunk: DiffHunk, language: string | null): HunkToke
 
   const result: HunkTokens = new Map()
   // сначала новая сторона: context берёт токены оттуда
-  tokenizeSide(hunk.lines.filter((l) => l.type !== 'del'), language, result)
-  tokenizeSide(hunk.lines.filter((l) => l.type === 'del'), language, result)
+  tokenizeSide(
+    hunk.lines.filter((l) => l.type !== 'del'),
+    language,
+    result,
+  )
+  tokenizeSide(
+    hunk.lines.filter((l) => l.type === 'del'),
+    language,
+    result,
+  )
   byLanguage.set(language, result)
   return result
 }

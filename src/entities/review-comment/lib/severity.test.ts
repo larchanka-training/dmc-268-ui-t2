@@ -14,7 +14,13 @@ const c = (id: string, severity: Severity): ReviewComment => ({
 
 describe('severity helpers', () => {
   it('sorts critical → warning → info and keeps the original order inside a level', () => {
-    const sorted = sortBySeverity([c('i1', 'info'), c('w1', 'warning'), c('c1', 'critical'), c('w2', 'warning'), c('c2', 'critical')])
+    const sorted = sortBySeverity([
+      c('i1', 'info'),
+      c('w1', 'warning'),
+      c('c1', 'critical'),
+      c('w2', 'warning'),
+      c('c2', 'critical'),
+    ])
 
     expect(sorted.map((x) => x.id)).toEqual(['c1', 'c2', 'w1', 'w2', 'i1'])
   })

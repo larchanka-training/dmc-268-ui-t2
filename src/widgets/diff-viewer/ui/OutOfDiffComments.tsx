@@ -15,9 +15,7 @@ export function OutOfDiffComments({ comments, testId, showFilePath = false }: Ou
       <ul className="space-y-2">
         {comments.map((comment) => (
           <li key={comment.id}>
-            {showFilePath && (
-              <p className="mb-1 font-mono text-xs text-muted-foreground">{comment.filePath}</p>
-            )}
+            {showFilePath && <p className="mb-1 font-mono text-xs text-muted-foreground">{comment.filePath}</p>}
             <CommentCard comment={comment} />
           </li>
         ))}

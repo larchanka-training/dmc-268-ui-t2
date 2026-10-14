@@ -277,7 +277,11 @@ describe('PullRequestPage: comments outside the diff', () => {
     await renderLoaded()
     const block = within(fileSection('src/api/user.ts')).getByTestId('out-of-diff-file')
 
-    expect(within(block).getAllByTestId('comment-card').map((c) => c.getAttribute('data-comment-id'))).toEqual(['c6'])
+    expect(
+      within(block)
+        .getAllByTestId('comment-card')
+        .map((c) => c.getAttribute('data-comment-id')),
+    ).toEqual(['c6'])
     expect(block).toHaveTextContent('Замечания вне diff')
   })
 
@@ -285,7 +289,11 @@ describe('PullRequestPage: comments outside the diff', () => {
     await renderLoaded()
     const block = screen.getByTestId('out-of-diff-pr')
 
-    expect(within(block).getAllByTestId('comment-card').map((c) => c.getAttribute('data-comment-id'))).toEqual(['c7'])
+    expect(
+      within(block)
+        .getAllByTestId('comment-card')
+        .map((c) => c.getAttribute('data-comment-id')),
+    ).toEqual(['c7'])
     expect(within(block).getByText('src/missing.ts')).toBeInTheDocument()
   })
 
