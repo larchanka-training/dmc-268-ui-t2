@@ -1,9 +1,7 @@
 import type {
   AvailableRepository,
-  AvailableRepositoryWire,
   ConnectRepositoryBody,
   Repository,
-  RepositoryPage,
   RepositoryPageWire,
   RepositoryWire,
 } from '@/entities/repository/model/types'
@@ -24,6 +22,9 @@ export class RepositoryHttpError extends Error {
   }
 }
 
+/** OpenAPI `Limit` default. A cursor is valid only for the limit it was issued with. */
+const REPOSITORY_PAGE_LIMIT = 20
+
 async function repositoryFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, {
     ...init,
@@ -31,23 +32,38 @@ async function repositoryFetch(input: string, init?: RequestInit): Promise<Respo
   })
 }
 
-export async function fetchConnectedRepositories(): Promise<Repository[]> {
-  const response = await repositoryFetch(REPOSITORIES_PATH)
-  if (!response.ok) {
-    throw new RepositoryHttpError(response.status)
+function repositoryPagePath(path: string, cursor: string | null): string {
+  const params = new URLSearchParams({ limit: String(REPOSITORY_PAGE_LIMIT) })
+  if (cursor !== null) {
+    params.set('cursor', cursor)
   }
-  const wire = (await response.json()) as RepositoryPageWire<RepositoryWire>
-  const page: RepositoryPage<Repository> = parseRepositoryPage(wire)
-  return page.items
+  return `${path}?${params.toString()}`
+}
+
+async function fetchEveryPage<TWire, TItem>(
+  path: string,
+  parsePage: (wire: RepositoryPageWire<TWire>) => { items: TItem[]; nextCursor: string | null },
+): Promise<TItem[]> {
+  const items: TItem[] = []
+  let cursor: string | null = null
+  do {
+    const response = await repositoryFetch(repositoryPagePath(path, cursor))
+    if (!response.ok) {
+      throw new RepositoryHttpError(response.status)
+    }
+    const page = parsePage((await response.json()) as RepositoryPageWire<TWire>)
+    items.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor !== null)
+  return items
+}
+
+export async function fetchConnectedRepositories(): Promise<Repository[]> {
+  return fetchEveryPage(REPOSITORIES_PATH, parseRepositoryPage)
 }
 
 export async function fetchAvailableRepositories(): Promise<AvailableRepository[]> {
-  const response = await repositoryFetch(REPOSITORIES_AVAILABLE_PATH)
-  if (!response.ok) {
-    throw new RepositoryHttpError(response.status)
-  }
-  const wire = (await response.json()) as RepositoryPageWire<AvailableRepositoryWire>
-  return parseAvailableRepositoryPage(wire).items
+  return fetchEveryPage(REPOSITORIES_AVAILABLE_PATH, parseAvailableRepositoryPage)
 }
 
 export async function connectRepository(body: ConnectRepositoryBody, csrfToken: string): Promise<Repository> {
