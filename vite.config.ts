@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    environment: 'jsdom',
+    environment: './src/test/jsdom-node-abort-environment.ts',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     restoreMocks: true,
