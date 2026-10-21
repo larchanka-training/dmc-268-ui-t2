@@ -27,9 +27,6 @@
     "prepare": "husky",
     "test": "vitest run",
     "test:watch": "vitest"
-    "test": "vitest run",
-    "validate": "pnpm lint && pnpm lint:styles && pnpm format:check && pnpm check-types && pnpm build",
-    "prepare": "husky"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
