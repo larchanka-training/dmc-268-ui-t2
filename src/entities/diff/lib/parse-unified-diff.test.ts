@@ -306,3 +306,77 @@ describe('parseUnifiedDiff: "\\ No newline at end of file"', () => {
     expect(lines[1]).toMatchObject({ type: 'add', noNewline: true })
   })
 })
+
+describe('parseUnifiedDiff: quoted (core.quotePath) paths', () => {
+  it('keeps a pure rename between Unicode names', () => {
+    const files = parseUnifiedDiff(`diff --git "a/\\321\\204.ts" "b/\\321\\217.ts"
+similarity index 100%
+rename from "\\321\\204.ts"
+rename to "\\321\\217.ts"
+`)
+
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ oldPath: 'ф.ts', newPath: 'я.ts', path: 'я.ts', status: 'renamed' })
+  })
+
+  it('decodes the path of a modified Unicode file taken from the header and ---/+++', () => {
+    const [file] = parseUnifiedDiff(`diff --git "a/\\321\\204.ts" "b/\\321\\204.ts"
+index 1111111..2222222 100644
+--- "a/\\321\\204.ts"
++++ "b/\\321\\204.ts"
+@@ -1 +1 @@
+-old
++new
+`)
+
+    expect(file).toMatchObject({ oldPath: 'ф.ts', newPath: 'ф.ts', path: 'ф.ts', status: 'modified' })
+    expect(file.hunks).toHaveLength(1)
+  })
+
+  it('decodes the path of a header-less diff', () => {
+    const [file] = parseUnifiedDiff(`--- "a/\\321\\204.ts"
++++ "b/\\321\\204.ts"
+@@ -1 +1 @@
+-old
++new
+`)
+
+    expect(file.path).toBe('ф.ts')
+  })
+
+  it('does not mark the previous text file binary when a quoted binary file follows', () => {
+    const files = parseUnifiedDiff(`diff --git "a/\\321\\204.ts" "b/\\321\\204.ts"
+index 1111111..2222222 100644
+--- "a/\\321\\204.ts"
++++ "b/\\321\\204.ts"
+@@ -1 +1 @@
+-old
++new
+diff --git "a/\\321\\200\\320\\270\\321\\201.png" "b/\\321\\200\\320\\270\\321\\201.png"
+index 3333333..4444444 100644
+Binary files "a/\\321\\200\\320\\270\\321\\201.png" and "b/\\321\\200\\320\\270\\321\\201.png" differ
+`)
+
+    expect(files.map((f) => f.path)).toEqual(['ф.ts', 'рис.png'])
+    expect(files[0].isBinary).toBe(false)
+    expect(files[0].hunks).toHaveLength(1)
+    expect(files[1].isBinary).toBe(true)
+  })
+
+  it('handles a header where only one side is quoted', () => {
+    const [file] = parseUnifiedDiff(`diff --git a/plain.ts "b/\\321\\217.ts"
+rename from plain.ts
+rename to "\\321\\217.ts"
+`)
+
+    expect(file).toMatchObject({ oldPath: 'plain.ts', newPath: 'я.ts', status: 'renamed' })
+  })
+
+  it('decodes C escapes: tab, quote, backslash and spaces', () => {
+    const [file] = parseUnifiedDiff(`diff --git "a/a\\tb\\"c\\\\d e.ts" "b/a\\tb\\"c\\\\d e.ts"
+index 1111111..2222222 100644
+`)
+
+    expect(file.path).toBe('a\tb"c\\d e.ts')
+  })
+})

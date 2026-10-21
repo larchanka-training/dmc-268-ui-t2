@@ -1,7 +1,19 @@
 import type { DiffFile, DiffHunk, DiffLine } from '@/entities/diff/model/types'
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@ ?(.*)$/
-const GIT_HEADER = /^diff --git a\/(.+) b\/(.+)$/
+// Git квотирует имена с не-ASCII/служебными символами (core.quotePath): "a/\321\204.ts"
+const QUOTED = String.raw`"(?:[^"\\]|\\.)*"`
+const QUOTED_PREFIX = new RegExp(`^${QUOTED}`)
+const GIT_HEADER = new RegExp(`^diff --git (${QUOTED}|a/.+) (${QUOTED}|b/.+)$`)
+const SIMPLE_ESCAPES: Record<string, string> = {
+  a: '\x07',
+  b: '\b',
+  f: '\f',
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  v: '\v',
+}
 const BINARY_FILES = /^Binary files (.+) and (.+) differ$/
 const NO_NEWLINE_MARKER = '\\'
 const DEV_NULL = '/dev/null'
@@ -25,12 +37,43 @@ function newDraft(oldPath: string | null = null, newPath: string | null = null):
   return { oldPath, newPath, isBinary: false, hunks: [] }
 }
 
-/** `a/src/x.ts\t2024-01-01` → `src/x.ts`; `/dev/null` → null */
-function cleanPath(raw: string): string | null {
-  let path = raw.split('\t')[0].trim()
-  if (path.startsWith('"') && path.endsWith('"')) path = path.slice(1, -1)
-  if (path === DEV_NULL) return null
+/** `"\321\204.ts"` → `ф.ts`: снимает кавычки и декодирует C-escaping Git (восьмеричные байты — UTF-8). */
+function unquoteGitPath(quoted: string): string {
+  const body = quoted.slice(1, -1)
+  const encoder = new TextEncoder()
+  const bytes: number[] = []
+  for (let i = 0; i < body.length; i += 1) {
+    if (body[i] !== '\\') {
+      bytes.push(...encoder.encode(body[i]))
+      continue
+    }
+    i += 1
+    const octal = /^[0-7]{1,3}/.exec(body.slice(i, i + 3))
+    if (octal) {
+      bytes.push(parseInt(octal[0], 8) & 0xff)
+      i += octal[0].length - 1
+    } else {
+      bytes.push(...encoder.encode(SIMPLE_ESCAPES[body[i]] ?? body[i] ?? '\\'))
+    }
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes))
+}
+
+/** Путь из `rename from/to`, `diff --git`-пары: квотированный декодируется, обычный остаётся как есть. */
+function readGitPath(raw: string): string {
+  return raw.startsWith('"') ? unquoteGitPath(raw) : raw
+}
+
+function stripSidePrefix(path: string): string {
   return path.replace(/^[ab]\//, '')
+}
+
+/** `a/src/x.ts\t2024-01-01` → `src/x.ts`; `"a/\321\204.ts"` → `ф.ts`; `/dev/null` → null */
+function cleanPath(raw: string): string | null {
+  const quoted = QUOTED_PREFIX.exec(raw.trim())
+  const path = quoted ? unquoteGitPath(quoted[0]) : raw.split('\t')[0].trim()
+  if (path === DEV_NULL) return null
+  return stripSidePrefix(path)
 }
 
 function finalizeFile(draft: FileDraft): DiffFile {
@@ -136,7 +179,7 @@ export function parseUnifiedDiff(raw: string): DiffFile[] {
     const git = GIT_HEADER.exec(line)
     if (git) {
       closeFile()
-      draft = newDraft(git[1], git[2])
+      draft = newDraft(stripSidePrefix(readGitPath(git[1])), stripSidePrefix(readGitPath(git[2])))
       continue
     }
 
@@ -162,8 +205,8 @@ export function parseUnifiedDiff(raw: string): DiffFile[] {
     if (line.startsWith('+++ ')) draft.newPath = cleanPath(line.slice(4))
     else if (line.startsWith('new file mode')) draft.oldPath = null
     else if (line.startsWith('deleted file mode')) draft.newPath = null
-    else if (line.startsWith('rename from ')) draft.oldPath = line.slice('rename from '.length)
-    else if (line.startsWith('rename to ')) draft.newPath = line.slice('rename to '.length)
+    else if (line.startsWith('rename from ')) draft.oldPath = readGitPath(line.slice('rename from '.length))
+    else if (line.startsWith('rename to ')) draft.newPath = readGitPath(line.slice('rename to '.length))
     else if (line.startsWith('GIT binary patch')) draft.isBinary = true
     else {
       const binary = BINARY_FILES.exec(line)
