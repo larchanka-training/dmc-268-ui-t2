@@ -174,6 +174,52 @@ describe('anchorComments', () => {
   })
 })
 
+describe('anchorComments: a path that is old in one file and new in another', () => {
+  const RENAME = `diff --git a/A.ts b/B.ts
+similarity index 90%
+rename from A.ts
+rename to B.ts
+--- a/A.ts
++++ b/B.ts
+@@ -1 +1 @@
+-renamed-before
++renamed-after
+`
+  const NEW_FILE = `diff --git a/A.ts b/A.ts
+new file mode 100644
+--- /dev/null
++++ b/A.ts
+@@ -0,0 +1 @@
++fresh
+`
+  const ORDERS = [
+    ['rename first', RENAME + NEW_FILE],
+    ['new file first', NEW_FILE + RENAME],
+  ] as const
+
+  describe.each(ORDERS)('%s', (_name, raw) => {
+    const [first, second] = parseUnifiedDiff(raw)
+    const renamedFile = first.status === 'renamed' ? first : second
+    const createdFile = first.status === 'added' ? first : second
+
+    it('anchors a new-side comment on A.ts to the new A.ts, not to the renamed B.ts', () => {
+      const c = comment({ filePath: 'A.ts', side: 'new', line: 1 })
+      const result = anchorComments([first, second], [c])
+
+      expect(result.byLine.get(lineOf(createdFile, 'fresh'))).toEqual([c])
+      expect(result.byLine.get(lineOf(renamedFile, 'renamed-after'))).toBeUndefined()
+    })
+
+    it('anchors an old-side comment on A.ts to the renamed file, not to the new A.ts', () => {
+      const c = comment({ filePath: 'A.ts', side: 'old', line: 1 })
+      const result = anchorComments([first, second], [c])
+
+      expect(result.byLine.get(lineOf(renamedFile, 'renamed-before'))).toEqual([c])
+      expect(result.outOfDiffByFile.size).toBe(0)
+    })
+  })
+})
+
 describe('commentsForRow', () => {
   it('merges comments of both cells of a del/add pair, sorted by severity', () => {
     const del = lineOf(a, 'removed-11')

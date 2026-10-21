@@ -40,12 +40,18 @@ function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V) {
 }
 
 export function anchorComments(files: readonly DiffFile[], comments: readonly ReviewComment[]): AnchoredComments {
-  const fileByPath = new Map<string, DiffFile>()
+  // Один путь может быть old у переименованного файла и new у другого (A.ts → B.ts + новый A.ts),
+  // поэтому файл ищется по стороне замечания; противоположная сторона — запасной вариант.
+  const fileByNewPath = new Map<string, DiffFile>()
+  const fileByOldPath = new Map<string, DiffFile>()
   for (const file of files) {
-    for (const path of [file.newPath, file.oldPath]) {
-      if (path !== null && !fileByPath.has(path)) fileByPath.set(path, file)
-    }
+    if (file.newPath !== null && !fileByNewPath.has(file.newPath)) fileByNewPath.set(file.newPath, file)
+    if (file.oldPath !== null && !fileByOldPath.has(file.oldPath)) fileByOldPath.set(file.oldPath, file)
   }
+  const resolveFile = (comment: ReviewComment): DiffFile | undefined =>
+    comment.side === 'new'
+      ? (fileByNewPath.get(comment.filePath) ?? fileByOldPath.get(comment.filePath))
+      : (fileByOldPath.get(comment.filePath) ?? fileByNewPath.get(comment.filePath))
   const indexes = new Map<DiffFile, Map<string, DiffLine>>()
 
   const byLine = new Map<DiffLine, ReviewComment[]>()
@@ -53,7 +59,7 @@ export function anchorComments(files: readonly DiffFile[], comments: readonly Re
   const orphans: ReviewComment[] = []
 
   for (const comment of comments) {
-    const file = fileByPath.get(comment.filePath)
+    const file = resolveFile(comment)
     if (!file) {
       orphans.push(comment)
       continue
