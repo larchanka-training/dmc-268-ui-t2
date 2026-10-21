@@ -162,6 +162,44 @@ describe('routing: #hash anchors', () => {
     await waitFor(() => expect(toggleOf('c4')).toHaveAttribute('aria-expanded', 'true'))
     expect(within(section).getByTestId('diff-table')).toBeInTheDocument()
   })
+
+  it('scrolls to the comment once its collapsed file has been expanded', async () => {
+    const { user, router } = renderWithRouter('/pulls/42')
+    await title()
+    const section = screen
+      .getAllByTestId('file-section')
+      .find((s) => s.getAttribute('data-file-path') === 'src/legacy/old-helper.ts') as HTMLElement
+    await user.click(within(section).getByRole('button', { name: 'src/legacy/old-helper.ts' }))
+    const scroll = Element.prototype.scrollIntoView as unknown as { mock: { contexts: Element[] } }
+    const scrolledBefore = scroll.mock.contexts.length
+
+    await act(() => router.navigate({ hash: '#comment-c4' }))
+
+    await waitFor(() =>
+      expect(scroll.mock.contexts.slice(scrolledBefore).some((el) => el.getAttribute('data-comment-id') === 'c4')).toBe(
+        true,
+      ),
+    )
+  })
+
+  it('scrolls to the comment when a severity counter jumps into a collapsed file', async () => {
+    const { user } = renderWithRouter('/pulls/42')
+    await title()
+    const section = screen
+      .getAllByTestId('file-section')
+      .find((s) => s.getAttribute('data-file-path') === 'src/api/user.ts') as HTMLElement
+    await user.click(within(section).getByRole('button', { name: 'src/api/user.ts' }))
+    const scroll = Element.prototype.scrollIntoView as unknown as { mock: { contexts: Element[] } }
+    const scrolledBefore = scroll.mock.contexts.length
+
+    await user.click(within(screen.getByTestId('severity-summary')).getByRole('button', { name: /critical/i }))
+
+    await waitFor(() =>
+      expect(scroll.mock.contexts.slice(scrolledBefore).some((el) => el.getAttribute('data-comment-id') === 'c1')).toBe(
+        true,
+      ),
+    )
+  })
 })
 
 describe('routing: severity counters jump to the first comment', () => {

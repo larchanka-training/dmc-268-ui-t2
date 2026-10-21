@@ -39,6 +39,15 @@ export function useHashTarget({ ready, fileOfComment }: UseHashTargetOptions) {
   const hash = decodeHash(location.hash)
   const jump = (location.state as JumpState | null)?.jump
 
+  // Раскрытие файла обновляет стор, на который подписан только DiffFileSection. Подписка здесь
+  // перерисовывает и хук после того, как карточка попала в DOM, — иначе скролл не повторился бы.
+  const targetFile = hash.startsWith(COMMENT_PREFIX)
+    ? fileOfComment.get(hash.slice(COMMENT_PREFIX.length))
+    : hash.startsWith(FILE_PREFIX)
+      ? hash.slice(FILE_PREFIX.length)
+      : undefined
+  useCollapsedFilesStore((state) => (targetFile ? Boolean(state.collapsed[targetFile]) : false))
+
   useEffect(() => {
     pendingScroll.current = null
     if (!ready || !hash) return
