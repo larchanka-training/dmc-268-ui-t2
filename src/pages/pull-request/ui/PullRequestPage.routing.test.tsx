@@ -1,5 +1,5 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createFakeDataSource } from '@/test/fake-data-source'
 import { renderWithRouter } from '@/test/render-with-router'
 
@@ -37,11 +37,35 @@ describe('routing: /pulls/:prId', () => {
     expect(await screen.findByTestId('route-not-found')).toBeInTheDocument()
   })
 
-  it('redirects / to the default PR', async () => {
-    const { router } = renderWithRouter('/')
+  it('redirects /review to the default PR', async () => {
+    const { router } = renderWithRouter('/review')
 
     await title()
     expect(router.state.location.pathname).toBe('/pulls/42')
+  })
+
+  it('renders the PR inside the app shell with the Reviews/PRs nav item active', async () => {
+    renderWithRouter('/pulls/42')
+    await title()
+
+    expect(screen.getByRole('link', { name: 'Reviews/PRs' })).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+describe('routing: auth', () => {
+  it('redirects / to /repos for a signed-in user', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 500 }))
+    const { router } = renderWithRouter('/')
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/repos'))
+  })
+
+  it('sends an anonymous user from a PR to /login with returnUrl', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 401 }))
+    const { router } = renderWithRouter('/pulls/42?view=split', { session: null })
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(new URLSearchParams(router.state.location.search).get('returnUrl')).toBe('/pulls/42?view=split')
   })
 })
 
