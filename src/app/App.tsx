@@ -1,10 +1,16 @@
+import { BrowserRouter } from 'react-router-dom'
 import { QueryProvider } from '@/app/providers/QueryProvider'
-import { ReviewPage } from '@/pages/review'
+import { SessionLifecycle } from '@/app/providers/SessionLifecycle'
+import { AppRouter } from '@/app/router'
 
 export function App() {
   return (
     <QueryProvider>
-      <ReviewPage />
+      <SessionLifecycle>
+        <BrowserRouter>
+          <AppRouter />
+        </BrowserRouter>
+      </SessionLifecycle>
     </QueryProvider>
   )
 }
