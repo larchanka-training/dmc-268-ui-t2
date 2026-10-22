@@ -33,8 +33,9 @@ export function highlightHunk(hunk: DiffHunk, language: string | null): HunkToke
     language,
     result,
   )
+  // старая сторона — context + del: del-строка внутри комментария/строки, открытых выше, подсвечивается верно
   tokenizeSide(
-    hunk.lines.filter((l) => l.type === 'del'),
+    hunk.lines.filter((l) => l.type !== 'add'),
     language,
     result,
   )
