@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw'
+import { sse } from 'msw/sse'
 import {
   AUTH_GITHUB_CALLBACK_PATH,
   AUTH_GITHUB_START_PATH,
@@ -22,6 +23,13 @@ import {
   listAvailableRepositoryPage,
   listConnectedRepositoryPage,
 } from '@/app/msw/repos-store'
+import {
+  hasCapturedDiff,
+  mockReviewDiffWire,
+  mockReviewFindingsWire,
+  reviewDetailWire,
+  reviewSnapshotWire,
+} from '@/app/msw/review-store'
 import { resolveReturnUrl } from '@/shared/lib/return-url'
 
 function isAuthenticated(cookies: Record<string, string>): boolean {
@@ -144,5 +152,89 @@ export const reposHandlers = [
       return new HttpResponse(null, { status: 422 })
     }
     return HttpResponse.json(result.repository, { status: result.status === 'created' ? 201 : 200 })
+  }),
+]
+
+const REVIEW_PATH = '/api/v1/reviews/:reviewId'
+const SNAPSHOT_TICK_MS = 250
+
+function notFound() {
+  return HttpResponse.json(
+    {
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Review is unavailable.',
+      request_id: 'msw',
+      retryable: false,
+      retry_after: null,
+    },
+    { status: 404 },
+  )
+}
+
+/**
+ * Stubbed reviews seams (see `review-store.ts` for the scenarios):
+ * - GET /api/v1/reviews/{id}
+ * - GET /api/v1/reviews/{id}/diff
+ * - GET /api/v1/reviews/{id}/findings
+ * - GET /api/v1/reviews/{id}/events/stream (SSE `review.snapshot`)
+ */
+export const reviewsHandlers = [
+  http.get(REVIEW_PATH, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    const review = reviewDetailWire(String(params.reviewId))
+    return review ? HttpResponse.json(review) : notFound()
+  }),
+
+  http.get(`${REVIEW_PATH}/diff`, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    return hasCapturedDiff(String(params.reviewId)) ? HttpResponse.json(mockReviewDiffWire) : notFound()
+  }),
+
+  http.get(`${REVIEW_PATH}/findings`, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) {
+      return new HttpResponse(null, { status: 401 })
+    }
+    const review = reviewDetailWire(String(params.reviewId))
+    if (!review) {
+      return notFound()
+    }
+    const done = review.status === 'COMPLETED' || review.status === 'PARTIAL'
+    return HttpResponse.json({ items: done ? mockReviewFindingsWire : [], next_cursor: null })
+  }),
+
+  sse<{ 'review.snapshot': unknown }>(`${REVIEW_PATH}/events/stream`, ({ client, cookies, params }) => {
+    const reviewId = String(params.reviewId)
+    if (!isAuthenticated(cookies) || reviewId === 'demo-review-polling' || !reviewSnapshotWire(reviewId)) {
+      // EventSource sees a failed connection; the UI must fall back to polling.
+      client.error()
+      return
+    }
+    let lastSequence = -1
+    const tick = () => {
+      const snapshot = reviewSnapshotWire(reviewId)
+      const review = reviewDetailWire(reviewId)
+      if (!snapshot || !review) {
+        client.close()
+        return
+      }
+      if (snapshot.sequence !== lastSequence) {
+        lastSequence = snapshot.sequence
+        client.send({ event: 'review.snapshot', data: snapshot })
+      }
+      const settled =
+        review.finished_at !== null &&
+        (snapshot.publication_status === 'PUBLISHED' ||
+          (snapshot.status === 'FAILED' && snapshot.publication_status === 'NOT_READY'))
+      if (settled) {
+        client.close()
+        return
+      }
+      setTimeout(tick, SNAPSHOT_TICK_MS)
+    }
+    tick()
   }),
 ]

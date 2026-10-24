@@ -3,6 +3,7 @@ import type { CommentThreadModel } from '@/entities/comment'
 import { CommentThread } from '@/entities/comment'
 import type { ContextGap, DiffHunk } from '@/entities/diff'
 import { useDiffContextQuery } from '@/entities/diff'
+import { FindingCard, type Finding } from '@/entities/finding'
 import type { CommentDraft } from '@/features/add-review-comment'
 import { CommentComposer } from '@/features/add-review-comment'
 import { Button } from '@/shared/ui/button'
@@ -53,6 +54,7 @@ export interface DiffHunkViewProps {
   filePath: string
   hunk: DiffHunk
   threadsByLine: Record<string, CommentThreadModel[]>
+  findingsByLine: Record<string, Finding[]>
   draft: CommentDraft | null
   isContextExpanded: (direction: 'before' | 'after') => boolean
   onExpandContext: (direction: 'before' | 'after') => void
@@ -66,6 +68,7 @@ export function DiffHunkView({
   filePath,
   hunk,
   threadsByLine,
+  findingsByLine,
   draft,
   isContextExpanded,
   onExpandContext,
@@ -93,6 +96,7 @@ export function DiffHunkView({
         const anchor = getLineAnchor(line)
         const key = anchor ? threadKey(anchor.side, anchor.lineNumber) : null
         const threads = key ? threadsByLine[key] : undefined
+        const lineFindings = key ? findingsByLine[key] : undefined
         const isDraftHere =
           draft !== null && anchor !== null && draft.side === anchor.side && draft.lineNumber === anchor.lineNumber
 
@@ -100,9 +104,14 @@ export function DiffHunkView({
           <div key={line.id}>
             <DiffLineRow
               line={line}
-              hasThread={Boolean(threads?.length) || isDraftHere}
+              hasThread={Boolean(threads?.length) || Boolean(lineFindings?.length) || isDraftHere}
               onStartComment={() => anchor && onStartComment(anchor.side, anchor.lineNumber)}
             />
+            {lineFindings?.map((finding) => (
+              <div key={finding.id} className="border-b border-border px-10 py-2">
+                <FindingCard finding={finding} />
+              </div>
+            ))}
             {threads?.map((thread) => (
               <div key={thread.id} className="border-b border-border px-10 py-2">
                 <CommentThread thread={thread} />

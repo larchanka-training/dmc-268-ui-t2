@@ -16,7 +16,7 @@ export function AppShell() {
   const meQuery = useMeQuery()
   const me = meQuery.data
   const reposActive = location.pathname === '/repos' || location.pathname.startsWith('/repos/')
-  const reviewActive = location.pathname === '/review' || location.pathname.startsWith('/review/')
+  const reviewActive = location.pathname === '/review' || location.pathname.startsWith('/reviews/')
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

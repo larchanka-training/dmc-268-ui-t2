@@ -44,6 +44,7 @@ export function AppRouter() {
         <Route path="/repos" element={<ReposPage />} />
         <Route path="/repos/connect" element={<ConnectRepoPage />} />
         <Route path="/review" element={<ReviewPage />} />
+        <Route path="/reviews/:reviewId" element={<ReviewPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
