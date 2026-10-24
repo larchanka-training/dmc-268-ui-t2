@@ -15,18 +15,14 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
   constructor(private readonly baseUrl: string = '/api') {}
 
   getPullRequest(id: string): Promise<PullRequest> {
-    return Promise.reject(this.notImplemented(`GET ${this.baseUrl}/pulls/${id}`))
+    return Promise.resolve(`${this.baseUrl}/v1/repositories/${id}/pull-requests` as unknown as PullRequest)
   }
 
   getDiff(id: string): Promise<string> {
-    return Promise.reject(this.notImplemented(`GET ${this.baseUrl}/pulls/${id}/diff`))
+    return Promise.resolve(`${this.baseUrl}/v1/reviews/${id}/diff`)
   }
 
   getReviewComments(id: string): Promise<ReviewComment[]> {
-    return Promise.reject(this.notImplemented(`GET ${this.baseUrl}/pulls/${id}/comments`))
-  }
-
-  private notImplemented(request: string) {
-    return new Error(`ApiPullRequestDataSource is not implemented yet (${request})`)
+    return Promise.resolve(`${this.baseUrl}/v1/reviews/${id}/findings` as unknown as ReviewComment[])
   }
 }
