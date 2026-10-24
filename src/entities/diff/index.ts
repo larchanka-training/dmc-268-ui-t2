@@ -6,4 +6,5 @@ export type {
   DiffLineType,
   ContextGap,
 } from '@/entities/diff/model/types'
-export { useDiffQuery, useDiffContextQuery } from '@/entities/diff/api/queries'
+export { reviewDiffQueryKey, useReviewDiffQuery, useDiffContextQuery } from '@/entities/diff/api/queries'
+export { fetchReviewDiff, reviewDiffPath } from '@/entities/diff/api/diff-client'
