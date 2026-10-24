@@ -10,9 +10,8 @@ export const TEST_PR: PullRequest = {
   targetBranch: 'main',
   createdAt: '2026-03-01T10:00:00.000Z',
   updatedAt: '2026-03-02T12:30:00.000Z',
-  reviewStatus: 'changes_requested',
-  score: 72,
-  verdict: 'request_changes',
+  reviewStatus: 'COMPLETED',
+  publicationStatus: 'PUBLISHED',
 }
 
 /**

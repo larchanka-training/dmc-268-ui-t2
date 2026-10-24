@@ -1,4 +1,9 @@
-export type { PullRequest, PullRequestAuthor, ReviewStatus, Verdict } from '@/entities/pull-request/model/types'
+export type {
+  PublicationStatus,
+  PullRequest,
+  PullRequestAuthor,
+  ReviewStatus,
+} from '@/entities/pull-request/model/types'
 export { PullRequestNotFoundError, type PullRequestDataSource } from '@/entities/pull-request/api/data-source'
 export { MockPullRequestDataSource } from '@/entities/pull-request/api/mock-data-source'
 export { ApiPullRequestDataSource } from '@/entities/pull-request/api/api-data-source'

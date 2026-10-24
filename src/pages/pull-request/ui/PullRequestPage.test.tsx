@@ -49,11 +49,8 @@ describe('PullRequestPage: metadata', () => {
   it('shows review status, score and verdict', async () => {
     await renderLoaded()
 
-    expect(screen.getByTestId('review-status')).toHaveAttribute('data-status', 'changes_requested')
-    expect(screen.getByTestId('review-status')).toHaveTextContent('Требуются изменения')
-    expect(screen.getByTestId('pr-score')).toHaveTextContent('72')
-    expect(screen.getByTestId('pr-verdict')).toHaveAttribute('data-verdict', 'request_changes')
-    expect(screen.getByTestId('pr-verdict')).toHaveTextContent('Запросить изменения')
+    expect(screen.getByTestId('review-status')).toHaveAttribute('data-status', 'COMPLETED')
+    expect(screen.getByTestId('review-status')).toHaveTextContent('Ревью завершено')
   })
 
   it('shows severity counters for all comments (including out-of-diff)', async () => {

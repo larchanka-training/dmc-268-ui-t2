@@ -1,34 +1,30 @@
 import { GitBranch } from 'lucide-react'
-import type { PullRequest, ReviewStatus, Verdict } from '@/entities/pull-request'
+import type { PullRequest, ReviewStatus } from '@/entities/pull-request'
 import type { Severity } from '@/entities/review-comment'
 import { SeveritySummary } from '@/widgets/pr-header/ui/SeveritySummary'
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 
 const STATUS_LABEL: Record<ReviewStatus, string> = {
-  pending: 'Ожидает ревью',
-  in_progress: 'Ревью в процессе',
-  approved: 'Одобрен',
-  changes_requested: 'Требуются изменения',
+  QUEUED: 'В очереди',
+  FETCHING_DIFF: 'Загрузка диффа',
+  PARSING_CONTEXT: 'Сбор контекста',
+  LLM_PROCESSING: 'Анализ моделью',
+  COMPLETED: 'Ревью завершено',
+  PARTIAL: 'Ревью частичное',
+  FAILED: 'Ревью не удалось',
+  SKIPPED: 'Ревью пропущено',
 }
 
-const STATUS_VARIANT: Record<ReviewStatus, 'secondary' | 'default' | 'success' | 'destructive'> = {
-  pending: 'secondary',
-  in_progress: 'default',
-  approved: 'success',
-  changes_requested: 'destructive',
-}
-
-const VERDICT_LABEL: Record<Verdict, string> = {
-  approve: 'Одобрить',
-  comment: 'Комментарий',
-  request_changes: 'Запросить изменения',
-}
-
-const VERDICT_VARIANT: Record<Verdict, 'success' | 'outline' | 'destructive'> = {
-  approve: 'success',
-  comment: 'outline',
-  request_changes: 'destructive',
+const STATUS_VARIANT: Record<ReviewStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'outline'> = {
+  QUEUED: 'secondary',
+  FETCHING_DIFF: 'default',
+  PARSING_CONTEXT: 'default',
+  LLM_PROCESSING: 'default',
+  COMPLETED: 'success',
+  PARTIAL: 'outline',
+  FAILED: 'destructive',
+  SKIPPED: 'secondary',
 }
 
 function formatDate(iso: string) {
@@ -91,13 +87,6 @@ export function PullRequestHeader({ pullRequest: pr, counts, onSelectSeverity }:
       <div className="flex flex-wrap items-center gap-3">
         <Badge data-testid="review-status" data-status={pr.reviewStatus} variant={STATUS_VARIANT[pr.reviewStatus]}>
           {STATUS_LABEL[pr.reviewStatus]}
-        </Badge>
-        <span data-testid="pr-score" className="text-sm">
-          Скор: <strong>{pr.score}</strong>
-          <span className="text-muted-foreground">/100</span>
-        </span>
-        <Badge data-testid="pr-verdict" data-verdict={pr.verdict} variant={VERDICT_VARIANT[pr.verdict]}>
-          {VERDICT_LABEL[pr.verdict]}
         </Badge>
         <SeveritySummary counts={counts} onSelect={onSelectSeverity} />
       </div>

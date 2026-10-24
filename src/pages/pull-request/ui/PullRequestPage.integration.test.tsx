@@ -48,8 +48,6 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     expect(screen.getByTestId('pr-author')).toBeInTheDocument()
     expect(screen.getByTestId('pr-branches')).toHaveTextContent('→')
     expect(screen.getByTestId('review-status')).toBeInTheDocument()
-    expect(screen.getByTestId('pr-score')).toBeInTheDocument()
-    expect(screen.getByTestId('pr-verdict')).toBeInTheDocument()
     expect(screen.getAllByTestId('file-section').length).toBeGreaterThanOrEqual(4)
 
     // все замечания отрисованы ровно один раз
