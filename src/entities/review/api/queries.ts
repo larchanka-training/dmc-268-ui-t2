@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { fetchReview } from '@/entities/review/api/review-client'
 import { openReviewStream } from '@/entities/review/api/review-stream'
-import { nextPollDelayMs } from '@/entities/review/model/poll-delay'
+import { reviewRefetchIntervalMs, type ReviewTransport } from '@/entities/review/model/poll-delay'
 import type { ReviewDetail, ReviewSnapshot } from '@/entities/review/model/types'
 import { isReviewSettled } from '@/entities/review/model/types'
 import { meQueryKey } from '@/entities/session'
 import { ApiHttpError } from '@/shared/api/http'
 
 export const reviewQueryKey = (reviewId: string) => ['reviews', reviewId] as const
-
-export type ReviewTransport = 'stream' | 'polling'
 
 function noRetryOnClientError(failureCount: number, error: Error): boolean {
   if (error instanceof ApiHttpError && error.status >= 400 && error.status < 500) {
@@ -53,9 +51,10 @@ function applySnapshot(queryClient: QueryClient, reviewId: string, snapshot: Rev
 }
 
 /**
- * Review detail kept live without page reloads: SSE (`/events/stream`) first; when the stream
- * is unusable, polling every 3 s backing off to 15 s while nothing changes (TanStack pauses
- * it in hidden tabs). Both stop once the review is settled.
+ * Review detail kept live without page reloads: SSE (`/events/stream`) first, plus detail
+ * refetches during LLM analysis for chunk progress; when the stream is unusable, polling every
+ * 3 s backing off to 15 s while nothing changes. TanStack pauses refetches in hidden tabs.
+ * Everything stops once the review is settled.
  */
 export function useLiveReview(reviewId: string) {
   const queryClient = useQueryClient()
@@ -70,10 +69,7 @@ export function useLiveReview(reviewId: string) {
     retry: noRetryOnClientError,
     refetchInterval: (current) => {
       const review = current.state.data
-      if (transport !== 'polling' || !review || isReviewSettled(review)) {
-        return false
-      }
-      return nextPollDelayMs(unchangedPolls.current)
+      return review ? reviewRefetchIntervalMs({ transport, review, unchangedPolls: unchangedPolls.current }) : false
     },
   })
 
