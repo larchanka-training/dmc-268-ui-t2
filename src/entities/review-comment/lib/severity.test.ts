@@ -6,10 +6,14 @@ const c = (id: string, severity: Severity): ReviewComment => ({
   id,
   filePath: 'a.ts',
   side: 'new',
+  startLine: 1,
   line: 1,
   severity,
+  category: 'correctness',
   title: id,
-  body: id,
+  explanation: id,
+  evidence: id,
+  recommendation: id,
 })
 
 describe('severity helpers', () => {

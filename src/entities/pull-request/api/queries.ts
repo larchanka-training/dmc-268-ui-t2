@@ -1,26 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
 
-export function usePullRequestQuery(prId: string) {
+export function useReviewQuery(reviewId: string) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['pull-request', prId],
-    queryFn: () => dataSource.getPullRequest(prId),
+    queryKey: ['review', reviewId],
+    queryFn: () => dataSource.getReview(reviewId),
   })
 }
 
-export function useDiffQuery(prId: string) {
+/** PR берётся из ревью, поэтому запрос ждёт его загрузки. */
+export function usePullRequestQuery(ref: { repositoryId: string; pullRequestNumber: number } | undefined) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['pull-request', prId, 'diff'],
-    queryFn: () => dataSource.getDiff(prId),
+    queryKey: ['pull-request', ref?.repositoryId, ref?.pullRequestNumber],
+    queryFn: () => (ref ? dataSource.getPullRequest(ref.repositoryId, ref.pullRequestNumber) : null),
+    enabled: ref !== undefined,
   })
 }
 
-export function useReviewCommentsQuery(prId: string) {
+export function useDiffQuery(reviewId: string) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['pull-request', prId, 'review-comments'],
-    queryFn: () => dataSource.getReviewComments(prId),
+    queryKey: ['review', reviewId, 'diff'],
+    queryFn: () => dataSource.getDiff(reviewId),
+  })
+}
+
+export function useReviewCommentsQuery(reviewId: string) {
+  const dataSource = useDataSource()
+  return useQuery({
+    queryKey: ['review', reviewId, 'findings'],
+    queryFn: () => dataSource.getReviewComments(reviewId),
   })
 }

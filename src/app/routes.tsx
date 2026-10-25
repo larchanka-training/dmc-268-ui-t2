@@ -1,7 +1,7 @@
 import { Navigate, type RouteObject } from 'react-router'
 import { AuthenticatedShell } from '@/app/guards/AuthenticatedShell'
 import { RootRedirect } from '@/app/guards/RootRedirect'
-import { MOCK_DEFAULT_PR_ID } from '@/entities/pull-request'
+import { MOCK_DEFAULT_REVIEW_ID } from '@/entities/pull-request'
 import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
 import { RouteError, RouteNotFound } from '@/pages/not-found'
@@ -22,8 +22,8 @@ export const appRoutes: RouteObject[] = [
     children: [
       { path: '/repos', element: <ReposPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },
-      { path: '/review', element: <Navigate to={`/pulls/${MOCK_DEFAULT_PR_ID}`} replace /> },
-      { path: '/pulls/:prId', element: <PullRequestPage />, errorElement: <RouteError /> },
+      { path: '/review', element: <Navigate to={`/reviews/${MOCK_DEFAULT_REVIEW_ID}`} replace /> },
+      { path: '/reviews/:reviewId', element: <PullRequestPage />, errorElement: <RouteError /> },
     ],
   },
   { path: '*', element: <RouteNotFound />, errorElement: <RouteError /> },

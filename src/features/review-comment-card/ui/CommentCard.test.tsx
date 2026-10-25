@@ -122,14 +122,38 @@ describe('CommentCard', () => {
     expect(screen.queryAllByTestId('fix-row')).toHaveLength(0)
   })
 
-  it('renders inline code in the body safely (no raw HTML)', async () => {
+  it('renders inline code in the explanation safely (no raw HTML)', async () => {
     const user = userEvent.setup()
-    const comment: ReviewComment = { ...withFix, body: 'Use `safeParse` here <img src=x onerror=alert(1)>' }
+    const comment: ReviewComment = { ...withFix, explanation: 'Use `safeParse` here <img src=x onerror=alert(1)>' }
     const { container } = render(<CommentCard comment={comment} />)
     await user.click(toggle(comment))
 
     expect(screen.getByText('safeParse').tagName).toBe('CODE')
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('shows explanation, evidence and recommendation as labelled sections, plus the category', async () => {
+    const user = userEvent.setup()
+    const comment: ReviewComment = {
+      ...withoutFix,
+      category: 'security',
+      explanation: 'Why it is wrong',
+      evidence: 'What proves it',
+      recommendation: 'What to do',
+    }
+    render(<CommentCard comment={comment} />)
+    await user.click(toggle(comment))
+
+    expect(screen.getByRole('region', { name: 'Проблема' })).toHaveTextContent('Why it is wrong')
+    expect(screen.getByRole('region', { name: 'Обоснование' })).toHaveTextContent('What proves it')
+    expect(screen.getByRole('region', { name: 'Рекомендация' })).toHaveTextContent('What to do')
+    expect(screen.getByTestId('comment-category')).toHaveTextContent('Безопасность')
+  })
+
+  it('shows a line range when the finding spans several lines', () => {
+    render(<CommentCard comment={{ ...withoutFix, startLine: 10, line: 12 }} />)
+
+    expect(toggle(withoutFix)).toHaveTextContent('new · 10–12')
   })
 
   it('exposes the comment id as the DOM id for hash links', () => {

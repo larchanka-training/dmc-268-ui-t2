@@ -9,7 +9,18 @@ export function PageLoading() {
 export function PageError() {
   return (
     <p role="alert" className="py-8 text-center text-sm text-destructive">
-      Не удалось загрузить pull request. Попробуйте обновить страницу.
+      Не удалось загрузить ревью. Попробуйте обновить страницу.
+    </p>
+  )
+}
+
+export function DiffPending() {
+  return (
+    <p
+      data-testid="diff-pending"
+      className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground"
+    >
+      Diff ещё не сохранён — ревью пока не дошло до этого шага.
     </p>
   )
 }

@@ -1,10 +1,25 @@
 import { ChevronDown } from 'lucide-react'
-import type { ReviewComment } from '@/entities/review-comment'
+import type { FindingCategory, ReviewComment } from '@/entities/review-comment'
 import { SEVERITY_TONE, SeverityBadge } from '@/entities/review-comment'
 import { useCommentCardStore } from '@/features/review-comment-card/model/store'
 import { MiniMarkdown } from '@/features/review-comment-card/ui/MiniMarkdown'
 import { SuggestedFix } from '@/features/review-comment-card/ui/SuggestedFix'
 import { cn } from '@/shared/lib/cn'
+
+const SECTIONS = [
+  { field: 'explanation', label: 'Проблема' },
+  { field: 'evidence', label: 'Обоснование' },
+  { field: 'recommendation', label: 'Рекомендация' },
+] as const satisfies readonly { field: keyof ReviewComment; label: string }[]
+
+const CATEGORY_LABEL: Record<FindingCategory, string> = {
+  security: 'Безопасность',
+  correctness: 'Корректность',
+  performance: 'Производительность',
+  maintainability: 'Сопровождаемость',
+}
+
+const lineRange = ({ startLine, line }: ReviewComment) => (startLine === line ? `${line}` : `${startLine}–${line}`)
 
 export interface CommentCardProps {
   comment: ReviewComment
@@ -35,7 +50,7 @@ export function CommentCard({ comment }: CommentCardProps) {
           <SeverityBadge severity={comment.severity} />
           <span className="min-w-0 flex-1 truncate">{comment.title}</span>
           <span className="shrink-0 text-xs font-normal opacity-70">
-            {comment.side} · {comment.line}
+            {comment.side} · {lineRange(comment)}
           </span>
           <ChevronDown
             aria-hidden="true"
@@ -50,7 +65,17 @@ export function CommentCard({ comment }: CommentCardProps) {
         hidden={!expanded}
         className="space-y-2 border-t border-border bg-card px-3 py-2 text-card-foreground"
       >
-        <MiniMarkdown source={comment.body} />
+        <p data-testid="comment-category" className="text-xs text-muted-foreground">
+          {CATEGORY_LABEL[comment.category]}
+        </p>
+        {SECTIONS.map(({ field, label }) =>
+          comment[field] ? (
+            <section key={field} data-testid={`comment-${field}`} aria-label={label}>
+              <h5 className="m-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</h5>
+              <MiniMarkdown source={comment[field]} />
+            </section>
+          ) : null,
+        )}
         {comment.suggestedFix && <SuggestedFix diff={comment.suggestedFix} filePath={comment.filePath} />}
       </div>
     </article>

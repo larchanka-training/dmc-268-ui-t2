@@ -7,6 +7,7 @@ import { appRoutes } from '@/app/routes'
 import { DataSourceProvider, type PullRequestDataSource } from '@/entities/pull-request'
 import { meQueryKey, type Me } from '@/entities/session'
 import { createFakeDataSource } from '@/test/fake-data-source'
+import { TEST_REVIEW_PATH } from '@/test/fixtures'
 
 export const fakeMe: Me = {
   user: { id: 'user-1', provider: 'github', externalId: '1', login: 'ada' },
@@ -26,7 +27,7 @@ export interface RenderWithRouterOptions {
  * с заданным начальным URL, тестовым источником данных и засеянной сессией (RequireAuth пропускает).
  */
 export function renderWithRouter(
-  initialEntry = '/pulls/42',
+  initialEntry = TEST_REVIEW_PATH,
   { dataSource = createFakeDataSource(), routes = appRoutes, session = fakeMe }: RenderWithRouterOptions = {},
 ) {
   const user = userEvent.setup()

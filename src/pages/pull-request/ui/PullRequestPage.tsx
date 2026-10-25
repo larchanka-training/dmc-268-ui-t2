@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
-import { parseUnifiedDiff } from '@/entities/diff'
+import type { DiffFile } from '@/entities/diff'
 import {
-  PullRequestNotFoundError,
+  ReviewNotFoundError,
   useDiffQuery,
   usePullRequestQuery,
   useReviewCommentsQuery,
+  useReviewQuery,
 } from '@/entities/pull-request'
 import { countBySeverity, type Severity } from '@/entities/review-comment'
 import { useCommentCardStore } from '@/features/review-comment-card'
@@ -22,46 +23,47 @@ import {
 } from '@/widgets/diff-viewer'
 import { useHashTarget, type JumpState } from '@/pages/pull-request/model/useHashTarget'
 import { useViewMode } from '@/pages/pull-request/model/useViewMode'
-import { EmptyDiff, PageError, PageLoading } from '@/pages/pull-request/ui/PageStates'
-import { PullRequestNotFound } from '@/pages/pull-request/ui/PullRequestNotFound'
+import { DiffPending, EmptyDiff, PageError, PageLoading } from '@/pages/pull-request/ui/PageStates'
+import { ReviewNotFound } from '@/pages/pull-request/ui/ReviewNotFound'
 
 const NO_COMMENTS: never[] = []
+const NO_FILES: DiffFile[] = []
 
 export function PullRequestPage() {
-  const { prId = '' } = useParams()
+  const { reviewId = '' } = useParams()
   const navigate = useNavigate()
   const { search } = useLocation()
   const [viewMode, setViewMode] = useViewMode()
 
-  const prQuery = usePullRequestQuery(prId)
-  const diffQuery = useDiffQuery(prId)
-  const commentsQuery = useReviewCommentsQuery(prId)
+  const reviewQuery = useReviewQuery(reviewId)
+  const prQuery = usePullRequestQuery(reviewQuery.data)
+  const diffQuery = useDiffQuery(reviewId)
+  const commentsQuery = useReviewCommentsQuery(reviewId)
 
-  // UI-состояние (раскрытые карточки и свёрнутые файлы) не должно перетекать между PR
+  // UI-состояние (раскрытые карточки и свёрнутые файлы) не должно перетекать между ревью
   useEffect(
     () => () => {
       useCommentCardStore.setState(useCommentCardStore.getInitialState(), true)
       useCollapsedFilesStore.setState(useCollapsedFilesStore.getInitialState(), true)
     },
-    [prId],
+    [reviewId],
   )
 
   const comments = commentsQuery.data ?? NO_COMMENTS
-  const files = useMemo(() => parseUnifiedDiff(diffQuery.data ?? ''), [diffQuery.data])
+  const files = diffQuery.data ?? NO_FILES
   const anchored = useMemo(() => anchorComments(files, comments), [files, comments])
   const counts = useMemo(() => countBySeverity(comments), [comments])
   const firstBySeverity = useMemo(() => firstCommentIdBySeverity(files, anchored), [files, anchored])
   const fileOfComment = useMemo(() => fileOfComments(files, anchored), [files, anchored])
 
-  const queries = [prQuery, diffQuery, commentsQuery]
-  const isReady = queries.every((query) => query.isSuccess)
+  const queries = [reviewQuery, diffQuery, commentsQuery]
+  // PR — необязательная часть шапки: закрытый PR или сбой GitHub не ломают страницу
+  const isReady = queries.every((query) => query.isSuccess) && !prQuery.isPending
   useHashTarget({ ready: isReady, fileOfComment })
 
-  if (queries.some((query) => query.error instanceof PullRequestNotFoundError)) {
-    return <PullRequestNotFound prId={prId} />
-  }
+  if (reviewQuery.error instanceof ReviewNotFoundError) return <ReviewNotFound reviewId={reviewId} />
   if (queries.some((query) => query.isError)) return <PageError />
-  if (!isReady || !prQuery.data) return <PageLoading />
+  if (!isReady || !reviewQuery.data) return <PageLoading />
 
   const selectSeverity = (severity: Severity) => {
     const id = firstBySeverity[severity]
@@ -72,11 +74,16 @@ export function PullRequestPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
-      <PullRequestHeader pullRequest={prQuery.data} counts={counts} onSelectSeverity={selectSeverity} />
+      <PullRequestHeader
+        review={reviewQuery.data}
+        pullRequest={prQuery.data ?? null}
+        counts={counts}
+        onSelectSeverity={selectSeverity}
+      />
 
       {files.length === 0 ? (
         <>
-          <EmptyDiff />
+          {diffQuery.data === null ? <DiffPending /> : <EmptyDiff />}
           <DiffViewer files={[]} anchored={anchored} viewMode={viewMode} />
         </>
       ) : (

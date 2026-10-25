@@ -1,8 +1,8 @@
 import { GitBranch } from 'lucide-react'
-import type { PullRequest, ReviewStatus } from '@/entities/pull-request'
+import type { PullRequest, Review, ReviewStatus } from '@/entities/pull-request'
 import type { Severity } from '@/entities/review-comment'
 import { SeveritySummary } from '@/widgets/pr-header/ui/SeveritySummary'
-import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar'
+import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
 
 const STATUS_LABEL: Record<ReviewStatus, string> = {
@@ -31,9 +31,9 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function initials(name: string) {
-  return name
-    .split(' ')
+function initials(login: string) {
+  return login
+    .split(/[-_.\s]/)
     .map((part) => part[0])
     .slice(0, 2)
     .join('')
@@ -41,55 +41,70 @@ function initials(name: string) {
 }
 
 export interface PullRequestHeaderProps {
-  pullRequest: PullRequest
+  review: Review
+  /** null — PR уже не открыт у провайдера (или GitHub недоступен) */
+  pullRequest: PullRequest | null
   counts: Record<Severity, number>
   onSelectSeverity: (severity: Severity) => void
 }
 
-export function PullRequestHeader({ pullRequest: pr, counts, onSelectSeverity }: PullRequestHeaderProps) {
+export function PullRequestHeader({ review, pullRequest: pr, counts, onSelectSeverity }: PullRequestHeaderProps) {
   return (
     <header className="space-y-3 border-b border-border pb-4">
       <h1 className="text-xl font-semibold">
-        {pr.title}{' '}
+        {pr?.title ?? 'Pull request'}{' '}
         <span data-testid="pr-number" className="font-normal text-muted-foreground">
-          #{pr.number}
+          #{review.pullRequestNumber}
         </span>
       </h1>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <span data-testid="pr-author" className="flex items-center gap-2">
-          <Avatar data-testid="pr-author-avatar" className="h-6 w-6">
-            {pr.author.avatarUrl && <AvatarImage src={pr.author.avatarUrl} alt="" />}
-            <AvatarFallback>{initials(pr.author.name)}</AvatarFallback>
-          </Avatar>
-          {pr.author.name}
-        </span>
+        {pr && (
+          <>
+            <span data-testid="pr-author" className="flex items-center gap-2">
+              <Avatar data-testid="pr-author-avatar" className="h-6 w-6">
+                <AvatarFallback>{initials(pr.author.login)}</AvatarFallback>
+              </Avatar>
+              {pr.author.login}
+            </span>
 
-        <span data-testid="pr-branches" className="flex items-center gap-1 font-mono text-xs">
-          <GitBranch aria-hidden="true" className="h-3 w-3" />
-          <code>{pr.sourceBranch}</code>
-          {' → '}
-          <code>{pr.targetBranch}</code>
-        </span>
+            <span data-testid="pr-branches" className="flex items-center gap-1 font-mono text-xs">
+              <GitBranch aria-hidden="true" className="h-3 w-3" />
+              <code>{pr.sourceBranch}</code>
+              {' → '}
+              <code>{pr.targetBranch}</code>
+            </span>
+          </>
+        )}
 
         <span className="text-muted-foreground">
-          создан{' '}
-          <time data-testid="pr-created" dateTime={pr.createdAt}>
-            {formatDate(pr.createdAt)}
+          ревью запущено{' '}
+          <time data-testid="review-created" dateTime={review.createdAt}>
+            {formatDate(review.createdAt)}
           </time>
-          , обновлён{' '}
-          <time data-testid="pr-updated" dateTime={pr.updatedAt}>
-            {formatDate(pr.updatedAt)}
-          </time>
+          {review.finishedAt && (
+            <>
+              , завершено{' '}
+              <time data-testid="review-finished" dateTime={review.finishedAt}>
+                {formatDate(review.finishedAt)}
+              </time>
+            </>
+          )}
         </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Badge data-testid="review-status" data-status={pr.reviewStatus} variant={STATUS_VARIANT[pr.reviewStatus]}>
-          {STATUS_LABEL[pr.reviewStatus]}
+        <Badge data-testid="review-status" data-status={review.status} variant={STATUS_VARIANT[review.status]}>
+          {STATUS_LABEL[review.status]}
         </Badge>
         <SeveritySummary counts={counts} onSelect={onSelectSeverity} />
       </div>
+
+      {review.summary && (
+        <p data-testid="review-summary" className="text-sm text-muted-foreground">
+          {review.summary}
+        </p>
+      )}
     </header>
   )
 }

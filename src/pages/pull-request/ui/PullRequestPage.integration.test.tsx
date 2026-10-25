@@ -1,8 +1,9 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { MockPullRequestDataSource } from '@/entities/pull-request'
+import { MOCK_DEFAULT_REVIEW_ID, MOCK_REVIEWS, MockPullRequestDataSource } from '@/entities/pull-request'
 import type { ReviewComment } from '@/entities/review-comment'
 import { renderWithRouter } from '@/test/render-with-router'
+import { TEST_REVIEW_PATH } from '@/test/fixtures'
 
 const dataSource = () => new MockPullRequestDataSource({ latencyMs: 0 })
 
@@ -11,8 +12,8 @@ const lineKey = (c: Pick<ReviewComment, 'filePath' | 'side' | 'line'>) => `${c.f
 describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
   it('the fixtures cover what the task requires', async () => {
     const ds = dataSource()
-    const comments = await ds.getReviewComments('42')
-    const diff = await ds.getDiff('42')
+    const comments = await ds.getReviewComments(MOCK_DEFAULT_REVIEW_ID)
+    const files = (await ds.getDiff(MOCK_DEFAULT_REVIEW_ID)) ?? []
 
     expect(new Set(comments.map((c) => c.severity))).toEqual(new Set(['critical', 'warning', 'info']))
     expect(comments.some((c) => c.side === 'old')).toBe(true)
@@ -22,17 +23,28 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     comments.forEach((c) => perLine.set(lineKey(c), (perLine.get(lineKey(c)) ?? 0) + 1))
     expect([...perLine.values()].some((n) => n > 1)).toBe(true)
 
-    const extensions = new Set([...diff.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((m) => m[1].split('.').pop()))
+    const extensions = new Set(files.map((file) => file.path.split('.').pop()))
     for (const ext of ['ts', 'tsx', 'css', 'json']) expect(extensions).toContain(ext)
-    expect(diff).toMatch(/^deleted file mode/m)
-    expect(diff).toMatch(/^new file mode/m)
+    const statuses = new Set(files.map((file) => file.status))
+    for (const status of ['added', 'deleted', 'modified', 'renamed']) expect(statuses).toContain(status)
   })
 
-  it('has a PR with an empty diff and rejects unknown ids', async () => {
+  it('the default review points at an open PR of the mock repository', async () => {
     const ds = dataSource()
+    const review = await ds.getReview(MOCK_DEFAULT_REVIEW_ID)
 
-    expect((await ds.getDiff('43')).trim()).toBe('')
-    await expect(ds.getPullRequest('999')).rejects.toMatchObject({ name: 'PullRequestNotFoundError' })
+    expect(await ds.getPullRequest(review.repositoryId, review.pullRequestNumber)).toMatchObject({ number: 42 })
+    expect(await ds.getPullRequest('unknown-repo', 42)).toBeNull()
+  })
+
+  it('has a skipped review with an empty diff, a pending one without a diff, and rejects unknown ids', async () => {
+    const ds = dataSource()
+    const idByStatus = (status: string) =>
+      Object.keys(MOCK_REVIEWS).find((id) => MOCK_REVIEWS[id].review.status === status) as string
+
+    expect(await ds.getDiff(idByStatus('SKIPPED'))).toEqual([])
+    expect(await ds.getDiff(idByStatus('FETCHING_DIFF'))).toBeNull()
+    await expect(ds.getReview('999')).rejects.toMatchObject({ name: 'ReviewNotFoundError' })
   })
 
   it.each([
@@ -40,8 +52,8 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     ['split', '?view=split'],
   ])('%s: every in-diff card directly follows its line; the rest sits in "outside diff"', async (_mode, query) => {
     const ds = dataSource()
-    const comments = await ds.getReviewComments('42')
-    renderWithRouter(`/pulls/42${query}`, { dataSource: ds })
+    const comments = await ds.getReviewComments(MOCK_DEFAULT_REVIEW_ID)
+    renderWithRouter(`${TEST_REVIEW_PATH}${query}`, { dataSource: ds })
     await screen.findByRole('heading', { level: 1 })
 
     // страница: автор, ветки, статус, скор, вердикт, файлы
@@ -82,9 +94,9 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     ['split', '?view=split'],
   ])('%s: a critical card expands and shows its suggested fix as a diff', async (_mode, query) => {
     const ds = dataSource()
-    const comments = await ds.getReviewComments('42')
+    const comments = await ds.getReviewComments(MOCK_DEFAULT_REVIEW_ID)
     const withFix = comments.find((c) => c.severity === 'critical' && c.suggestedFix) as ReviewComment
-    const { user } = renderWithRouter(`/pulls/42${query}`, { dataSource: ds })
+    const { user } = renderWithRouter(`${TEST_REVIEW_PATH}${query}`, { dataSource: ds })
     await screen.findByRole('heading', { level: 1 })
 
     const card = document.querySelector(`[data-comment-id="${withFix.id}"]`) as HTMLElement

@@ -45,14 +45,19 @@ const lineOf = (file: typeof a, content: string): DiffLine => {
 let seq = 0
 const comment = (over: Partial<ReviewComment> & { severity?: Severity } = {}): ReviewComment => {
   seq += 1
+  const line = over.line ?? 11
   return {
     id: `c${seq}`,
     filePath: 'src/a.ts',
     side: 'new',
-    line: 11,
+    startLine: line,
+    line,
     severity: 'info',
+    category: 'correctness',
     title: 't',
-    body: 'b',
+    explanation: 'b',
+    evidence: 'e',
+    recommendation: 'r',
     ...over,
   }
 }

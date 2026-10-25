@@ -1,10 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { PullRequestNotFoundError } from '@/entities/pull-request'
+import { parseUnifiedDiff } from '@/entities/diff'
+import { ReviewNotFoundError } from '@/entities/pull-request'
 import { createFakeDataSource } from '@/test/fake-data-source'
 import { renderWithRouter } from '@/test/render-with-router'
+import { TEST_REVIEW, TEST_REVIEW_PATH } from '@/test/fixtures'
 
-async function renderLoaded(entry = '/pulls/42') {
+async function renderLoaded(entry = TEST_REVIEW_PATH) {
   const utils = renderWithRouter(entry)
   await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
   return utils
@@ -35,15 +37,35 @@ function stackAfter(row: HTMLElement) {
 }
 
 describe('PullRequestPage: metadata', () => {
-  it('shows title, number, author, branches and dates', async () => {
+  it('shows title, number, author, branches and review dates', async () => {
     await renderLoaded()
 
     expect(screen.getByTestId('pr-number')).toHaveTextContent('#42')
-    expect(screen.getByTestId('pr-author')).toHaveTextContent('Ada Lovelace')
+    expect(screen.getByTestId('pr-author')).toHaveTextContent('ada-lovelace')
     expect(screen.getByTestId('pr-author-avatar')).toBeInTheDocument()
     expect(screen.getByTestId('pr-branches')).toHaveTextContent('feature/user-meta → main')
-    expect(screen.getByTestId('pr-created')).toHaveAttribute('datetime', '2026-03-01T10:00:00.000Z')
-    expect(screen.getByTestId('pr-updated')).toHaveAttribute('datetime', '2026-03-02T12:30:00.000Z')
+    expect(screen.getByTestId('review-created')).toHaveAttribute('datetime', '2026-03-01T10:00:00.000Z')
+    expect(screen.getByTestId('review-finished')).toHaveAttribute('datetime', '2026-03-02T12:30:00.000Z')
+    expect(screen.getByTestId('review-summary')).toHaveTextContent('Looks mostly fine.')
+  })
+
+  it('falls back to the PR number when the PR is no longer open', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, { dataSource: createFakeDataSource({ getPullRequest: async () => null }) })
+
+    expect(await screen.findByRole('heading', { level: 1, name: /Pull request #42/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('pr-author')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('pr-branches')).not.toBeInTheDocument()
+  })
+
+  it('does not show a finish date for an unfinished review', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getReview: async () => ({ ...TEST_REVIEW, status: 'LLM_PROCESSING', finishedAt: null }),
+      }),
+    })
+
+    expect(await screen.findByTestId('review-status')).toHaveAttribute('data-status', 'LLM_PROCESSING')
+    expect(screen.queryByTestId('review-finished')).not.toBeInTheDocument()
   })
 
   it('shows review status, score and verdict', async () => {
@@ -143,7 +165,9 @@ describe('PullRequestPage: files', () => {
 index 1..2 100644
 Binary files a/img/logo.png and b/img/logo.png differ
 `
-    renderWithRouter('/pulls/42', { dataSource: createFakeDataSource({ getDiff: async () => binaryDiff }) })
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({ getDiff: async () => parseUnifiedDiff(binaryDiff) }),
+    })
 
     expect(await screen.findByTestId('binary-placeholder')).toBeInTheDocument()
   })
@@ -189,7 +213,7 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
     ['split', '?view=split'],
   ])('%s mode', (_mode, query) => {
     it('puts the card stack in the DOM right after the line it belongs to, ordered by severity', async () => {
-      await renderLoaded(`/pulls/42${query}`)
+      await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const section = fileSection('src/api/user.ts')
 
       // new:12 — три замечания, добавлены в порядке info, critical, warning
@@ -197,7 +221,7 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
     })
 
     it('anchors an old-side comment under the deleted line (old numbering)', async () => {
-      await renderLoaded(`/pulls/42${query}`)
+      await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const section = fileSection('src/api/user.ts')
       const delRow = section.querySelector<HTMLElement>('[data-testid="diff-row"][data-old-line="11"]')
 
@@ -207,14 +231,14 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
     })
 
     it('anchors a comment on a deleted file by old numbering', async () => {
-      await renderLoaded(`/pulls/42${query}`)
+      await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const section = fileSection('src/legacy/old-helper.ts')
 
       expect(stackAfter(diffRow(section, { old: 2 }))).toEqual(['c4'])
     })
 
     it('does not put cards after lines without comments', async () => {
-      await renderLoaded(`/pulls/42${query}`)
+      await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const section = fileSection('src/api/user.ts')
       const plain = diffRow(section, { old: 10, next: 10 })
 
@@ -222,7 +246,7 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
     })
 
     it('makes the comment row span the full width of the table', async () => {
-      await renderLoaded(`/pulls/42${query}`)
+      await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const row = diffRow(fileSection('src/api/user.ts'), { next: 12 })
       const cell = (row.nextElementSibling as HTMLElement).querySelector('td')
 
@@ -231,7 +255,7 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
     })
 
     it('renders cards collapsed by default and expands on click and on Enter', async () => {
-      const { user } = await renderLoaded(`/pulls/42${query}`)
+      const { user } = await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const card = (id: string) => document.querySelector(`[data-comment-id="${id}"]`) as HTMLElement
       const toggle = (id: string) => card(id).querySelector('button[aria-expanded]') as HTMLElement
 
@@ -295,17 +319,21 @@ describe('PullRequestPage: comments outside the diff', () => {
   })
 
   it('does not render out-of-diff blocks when everything is anchored', async () => {
-    renderWithRouter('/pulls/42', {
+    renderWithRouter(TEST_REVIEW_PATH, {
       dataSource: createFakeDataSource({
         getReviewComments: async () => [
           {
             id: 'only',
             filePath: 'src/api/user.ts',
             side: 'new',
+            startLine: 12,
             line: 12,
             severity: 'info',
+            category: 'correctness',
             title: 'Only',
-            body: 'only',
+            explanation: 'only',
+            evidence: 'only',
+            recommendation: 'only',
           },
         ],
       }),
@@ -319,15 +347,15 @@ describe('PullRequestPage: comments outside the diff', () => {
 
 describe('PullRequestPage: states', () => {
   it('shows a loading state while data is pending', () => {
-    renderWithRouter('/pulls/42', {
-      dataSource: createFakeDataSource({ getPullRequest: () => new Promise(() => {}) }),
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({ getReview: () => new Promise(() => {}) }),
     })
 
     expect(screen.getByRole('status')).toHaveTextContent(/загрузка/i)
   })
 
   it('shows an error state when loading fails', async () => {
-    renderWithRouter('/pulls/42', {
+    renderWithRouter(TEST_REVIEW_PATH, {
       dataSource: createFakeDataSource({ getDiff: async () => Promise.reject(new Error('boom')) }),
     })
 
@@ -335,21 +363,29 @@ describe('PullRequestPage: states', () => {
   })
 
   it('shows an empty state for an empty diff but keeps the PR header', async () => {
-    renderWithRouter('/pulls/42', { dataSource: createFakeDataSource({ getDiff: async () => '' }) })
+    renderWithRouter(TEST_REVIEW_PATH, { dataSource: createFakeDataSource({ getDiff: async () => [] }) })
 
     expect(await screen.findByTestId('empty-diff')).toHaveTextContent(/diff пуст/i)
     expect(screen.getByRole('heading', { level: 1, name: /Add user metadata/ })).toBeInTheDocument()
     expect(screen.queryByTestId('diff-table')).not.toBeInTheDocument()
   })
 
-  it('shows "PR не найден" when the data source says the PR does not exist', async () => {
-    renderWithRouter('/pulls/42', {
+  it('shows a "diff not stored yet" state when the diff is not available (404)', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, { dataSource: createFakeDataSource({ getDiff: async () => null }) })
+
+    expect(await screen.findByTestId('diff-pending')).toHaveTextContent(/ещё не сохранён/i)
+    expect(screen.queryByTestId('empty-diff')).not.toBeInTheDocument()
+    expect(screen.getByTestId('out-of-diff-pr')).toBeInTheDocument()
+  })
+
+  it('shows "Ревью не найдено" when the data source says the review does not exist', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, {
       dataSource: createFakeDataSource({
-        getPullRequest: async (id) => Promise.reject(new PullRequestNotFoundError(id)),
+        getReview: async (id) => Promise.reject(new ReviewNotFoundError(id)),
       }),
     })
 
-    expect(await screen.findByTestId('pr-not-found')).toHaveTextContent('PR не найден')
+    expect(await screen.findByTestId('review-not-found')).toHaveTextContent('Ревью не найдено')
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
   })
 })
