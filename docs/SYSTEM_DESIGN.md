@@ -35,7 +35,7 @@ The team board proposes a GitHub bot and reviewer-assignment trigger, access/quo
 | Included | Excluded without a separate decision |
 |---|---|
 | GitHub PRs; adapter contract can support GitLab | Both VCS implementations at once |
-| Product UI launch; bot trigger after feasibility validation | Every-push launch, quick actions, arbitrary mentions |
+| Manual start from the UI. Optional per-repository automatic start on pull-request open or update, default off | GitHub App installation, starting every push without that setting, requesting the bot as a GitHub reviewer |
 | Access and technical quota checks | Payments, billing, token purchases |
 | PR summary/inline findings; runs, diff, results in UI | Full GitLab-like UI and agent chat |
 | Python and TypeScript/TSX AST context | Full-repository indexing, external RAG, every language |
@@ -175,11 +175,11 @@ stateDiagram-v2
     UNKNOWN --> FAILED: absence confirmed
 ```
 
-`UNKNOWN` stops automatic retries until operator reconciliation. Transitions, reasons, and fencing tokens are recorded. Duplicate delivery continues the same run; explicit rerun creates a new run with `rerun_of`. A push alone does not launch proposed v1.
+`UNKNOWN` stops automatic retries until operator reconciliation. Transitions, reasons, and fencing tokens are recorded. Duplicate delivery continues the same run; explicit rerun creates a new run with `rerun_of`. A push starts a review only when that repository's automatic-start setting is on. The default is off.
 
 ## 5. VCS integration and immutable snapshot
 
-GitHub uses a GitHub App limited to selected repositories, with metadata/contents read and pull-request read/write permissions. `POST /api/v1/webhooks/github` verifies the raw-body signature and deduplicates by delivery ID. Unknown events return 2xx without creating jobs. The `pull_request/review_requested` bot scenario must be tested.
+GitHub server access is one bot user, not a GitHub App. The read token downloads diffs. The write token posts comments. A repository is connected only after Check access shows that bot has Write, Maintain, or Admin. `POST /api/v1/webhooks/github` verifies the raw-body signature and deduplicates by delivery ID. Unknown events return 2xx without creating jobs. One organization webhook supplies pull-request events. Intake stores a diff for a connected repository and does not by itself start a review.
 
 | Adapter operation | Input | Output / guarantee |
 |---|---|---|
@@ -191,9 +191,9 @@ GitHub uses a GitHub App limited to selected repositories, with metadata/content
 
 `Snapshot` contains repository IDs, `base_sha`, `merge_base_sha`, `head_sha`, `captured_at`, and provider diff version. Review covers `merge_base_sha…head_sha`; all reads use SHA, never branch names.
 
-For fork PRs, metadata/files/patch come through the base repository and head is resolved as `refs/pull/{number}/head`. Direct source access requires installation permission. If a full blob is unavailable, level 1 may remain while levels 2–4 are marked unavailable; without a trustworthy diff the run fails. Private-fork support requires an integration test.
+For fork PRs, metadata/files/patch come through the base repository and head is resolved as `refs/pull/{number}/head`. Direct source access requires the bot account to have access. If a full blob is unavailable, level 1 may remain while levels 2–4 are marked unavailable; without a trustworthy diff the run fails. Private-fork support requires an integration test.
 
-Pagination is mandatory. Missing/truncated patches are reconstructed from fixed blobs within limits or reported incomplete. Current-state APIs are SHA-checked before/after. Publication rechecks open state, head/base SHA, app access, and initiator rights; stale results remain in history but are not published.
+Pagination is mandatory. Missing/truncated patches are reconstructed from fixed blobs within limits or reported incomplete. Current-state APIs are SHA-checked before/after. Publication rechecks open state, head/base SHA, bot access, and initiator rights; stale results remain in history but are not published.
 
 | Domain | GitHub v1 | Future GitLab |
 |---|---|---|
@@ -247,7 +247,7 @@ Default policy excludes binaries, known lock files, minified/generated output, `
 
 Small files may share a stable-order chunk. Large blocks split by hunk/range without losing line maps. Reserve instructions, diff, local context, and output before whole-file/symbol context; deduplicate levels 2–4. Budget exhaustion removes low-priority context, moves changes to later chunks, then reports partial coverage. No silent truncation.
 
-Redis caches blobs/derived context by provider, installation/repository, SHA, path, builder/parser/window/rules versions, and relevant metadata hash. PostgreSQL stores final payloads and is authoritative. Authorization is checked on hits; negative VCS results cache ≤1 minute. LLM results are reused only to resume the same run. Cache TTL/eviction is separate from queue delivery/retention policy; queue loss is recovered from PostgreSQL without reviving terminal jobs. Stored-result reads do not require Redis.
+Redis caches blobs/derived context by provider, repository, SHA, path, builder/parser/window/rules versions, and relevant metadata hash. PostgreSQL stores final payloads and is authoritative. Authorization is checked on hits; negative VCS results cache ≤1 minute. LLM results are reused only to resume the same run. Cache TTL/eviction is separate from queue delivery/retention policy; queue loss is recovered from PostgreSQL without reviving terminal jobs. Stored-result reads do not require Redis.
 
 ## 7. LLM contract and validation
 
@@ -275,7 +275,7 @@ Limitations: <none or reasons>
 [Open saved result](<review_url>)
 ```
 
-Marker must be the first fully parsed body line; PR text is never a marker. Publisher leases the PR, checks freshness, searches by marker/app author, and stores remote IDs. Publication retry does not rerun inference.
+Marker must be the first fully parsed body line; PR text is never a marker. Publisher leases the PR, checks freshness, searches by marker and the bot user's numeric id (`GITHUB__BOT_USER_ID`), and stores remote IDs. Publication retry does not rerun inference.
 
 There is no cross-system exactly-once transaction. After timeout, reconcile remote state. Unknown outcome becomes `UNKNOWN` and stops automatic resend; confirmed partial is `PARTIAL` and is not auto-completed. Retry requires confirmed total absence. Human comments are never changed. Missing findings in later nondeterministic reviews do not mean fixed.
 
@@ -332,9 +332,9 @@ New starts return 202; same-key/same-body replays return 200 with the existing c
 ## 12. Security
 
 - GitHub OAuth through backend, then 30-minute Secure/HttpOnly/SameSite=Lax JWT cookie with `sid` backed by active PostgreSQL `AuthSession`; no localStorage tokens. Validate single-use OAuth state and allowlisted Origin/CSRF on browser mutations. Refresh requires a valid JWT and active unexpired/non-revoked DB session, renews the same sid for 30 minutes, and preserves CSRF; expired/revoked sessions require OAuth again. No separate browser-readable refresh token.
-- Local repository role plus current GitHub read-access check cached ≤60 seconds. Reviewer launches; admin changes settings. Fail closed. Encrypt user token backend-side.
-- Installation token is never sent to UI or treated as user authorization. Revoked installation blocks work/publication.
-- Deployment supplies minimal GitHub/JWT/webhook secrets; never commit or log them; rotate keys.
+- Local repository role plus current GitHub read-access check cached ≤60 seconds. Reviewer launches; admin changes settings. Fail closed. Encrypt user token backend-side. Login requests the `repo` scope. That token lists repositories, reads the user's role, and rechecks access on a manual start.
+- The bot user is a different subject. Its read and write tokens are deployment secrets, are never sent to the UI, and are not the logged-in user's token. A denied bot call disconnects the repository and stops new reviews and publication. Findings already stored stay.
+- Deployment supplies the OAuth client secret, both bot tokens, the bot user id, the webhook secret, and the JWT key. Never commit or log them. Rotate them.
 - PR code/descriptions/comments are untrusted data and cannot change system instructions. Model gets no shell, arbitrary network, or VCS tools; code/dependencies never execute/install.
 - Validate/escape output and paths; mask discovered secrets. External LLM requires repository-owner approval.
 
@@ -410,9 +410,7 @@ Canonical system overview is `docs/SYSTEM_DESIGN.md`; `docs/SYSTEM_DESIGN_RU.md`
 | Question | Default / blocked work | Approver |
 |---|---|---|
 | Later GitLab adapter? | GitHub-only Sprint 2 scope is confirmed; GitLab requires a separate later decision | Team / assignment owner |
-| Can bot be requested as reviewer? | Test App/account/event; UI launch is reliable default | Tech Lead + backend |
 | Meaning of subscription/token limit? | Enabled access and technical quotas only | Assignment owner + Tech Lead |
-| OAuth/access policy? | Approve login/token check/local roles/installation owner | Tech Lead + backend + DevOps |
 | Ollama model/hardware? | Need digest, ≥16K, structured output, latency measurement | Agentic + DevOps + QA |
 | Retention/single host acceptable? | Approve retention, operator access, recovery goals | Repository owners + DevOps |
 
