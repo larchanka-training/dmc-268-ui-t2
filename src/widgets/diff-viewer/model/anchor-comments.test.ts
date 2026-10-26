@@ -52,7 +52,7 @@ const comment = (over: Partial<ReviewComment> & { severity?: Severity } = {}): R
     side: 'new',
     startLine: line,
     line,
-    severity: 'info',
+    severity: 'low',
     category: 'correctness',
     title: 't',
     explanation: 'b',
@@ -105,16 +105,17 @@ describe('anchorComments', () => {
     expect(result.outOfDiffByFile.get('src/gone.ts')).toEqual([onGone])
   })
 
-  it('sorts several comments on one line: critical → warning → info (stable)', () => {
+  it('sorts several comments on one line: critical → high → medium → low (stable)', () => {
     const cs = [
-      comment({ id: 'i', severity: 'info' }),
-      comment({ id: 'w1', severity: 'warning' }),
+      comment({ id: 'l', severity: 'low' }),
+      comment({ id: 'm', severity: 'medium' }),
+      comment({ id: 'h1', severity: 'high' }),
       comment({ id: 'c', severity: 'critical' }),
-      comment({ id: 'w2', severity: 'warning' }),
+      comment({ id: 'h2', severity: 'high' }),
     ]
     const stack = anchorComments(files, cs).byLine.get(lineOf(a, 'added-11'))
 
-    expect(stack?.map((x) => x.id)).toEqual(['c', 'w1', 'w2', 'i'])
+    expect(stack?.map((x) => x.id)).toEqual(['c', 'h1', 'h2', 'm', 'l'])
   })
 
   it('puts a comment on a line outside the diff into the file-level out-of-diff list', () => {
@@ -229,11 +230,11 @@ describe('commentsForRow', () => {
   it('merges comments of both cells of a del/add pair, sorted by severity', () => {
     const del = lineOf(a, 'removed-11')
     const add = lineOf(a, 'added-11')
-    const onOld = comment({ side: 'old', line: 11, severity: 'info', id: 'old-info' })
+    const onOld = comment({ side: 'old', line: 11, severity: 'low', id: 'old-low' })
     const onNew = comment({ side: 'new', line: 11, severity: 'critical', id: 'new-critical' })
     const { byLine } = anchorComments(files, [onOld, onNew])
 
-    expect(commentsForRow(byLine, [del, add]).map((x) => x.id)).toEqual(['new-critical', 'old-info'])
+    expect(commentsForRow(byLine, [del, add]).map((x) => x.id)).toEqual(['new-critical', 'old-low'])
   })
 
   it('does not duplicate comments when both cells are the same context line', () => {

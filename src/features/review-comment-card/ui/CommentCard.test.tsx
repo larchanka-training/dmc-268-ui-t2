@@ -79,8 +79,9 @@ describe('CommentCard', () => {
 
   it.each([
     ['critical', 'c1', 'Critical'],
-    ['warning', 'c2', 'Warning'],
-    ['info', 'c3', 'Info'],
+    ['high', 'c2', 'High'],
+    ['medium', 'c3', 'Medium'],
+    ['low', 'c5', 'Low'],
   ])('shows %s severity as text, not only as colour', (severity, id, label) => {
     const comment = TEST_COMMENTS.find((c) => c.id === id) as ReviewComment
     render(<CommentCard comment={comment} />)

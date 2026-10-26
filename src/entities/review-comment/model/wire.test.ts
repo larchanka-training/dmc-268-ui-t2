@@ -38,10 +38,10 @@ describe('parseFinding (OpenAPI Finding → ReviewComment)', () => {
 
   it.each([
     ['critical', 'critical'],
-    ['high', 'warning'],
-    ['medium', 'info'],
-    ['low', 'info'],
-  ] as const)('maps backend severity %s to UI %s', (backend, ui) => {
+    ['high', 'high'],
+    ['medium', 'medium'],
+    ['low', 'low'],
+  ] as const)('keeps backend severity %s as UI %s', (backend, ui) => {
     expect(parseFinding({ ...wire, severity: backend }).severity).toBe(ui)
   })
 

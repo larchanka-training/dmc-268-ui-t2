@@ -17,30 +17,32 @@ const c = (id: string, severity: Severity): ReviewComment => ({
 })
 
 describe('severity helpers', () => {
-  it('sorts critical → warning → info and keeps the original order inside a level', () => {
+  it('sorts critical → high → medium → low and keeps the original order inside a level', () => {
     const sorted = sortBySeverity([
-      c('i1', 'info'),
-      c('w1', 'warning'),
+      c('l1', 'low'),
+      c('m1', 'medium'),
+      c('h1', 'high'),
       c('c1', 'critical'),
-      c('w2', 'warning'),
+      c('h2', 'high'),
       c('c2', 'critical'),
     ])
 
-    expect(sorted.map((x) => x.id)).toEqual(['c1', 'c2', 'w1', 'w2', 'i1'])
+    expect(sorted.map((x) => x.id)).toEqual(['c1', 'c2', 'h1', 'h2', 'm1', 'l1'])
   })
 
   it('does not mutate its input', () => {
-    const input = [c('i1', 'info'), c('c1', 'critical')]
+    const input = [c('l1', 'low'), c('c1', 'critical')]
     sortBySeverity(input)
 
-    expect(input.map((x) => x.id)).toEqual(['i1', 'c1'])
+    expect(input.map((x) => x.id)).toEqual(['l1', 'c1'])
   })
 
   it('counts comments per severity, including zeros', () => {
-    expect(countBySeverity([c('a', 'info'), c('b', 'info'), c('c', 'critical')])).toEqual({
+    expect(countBySeverity([c('a', 'low'), c('b', 'low'), c('c', 'critical'), c('d', 'medium')])).toEqual({
       critical: 1,
-      warning: 0,
-      info: 2,
+      high: 0,
+      medium: 1,
+      low: 2,
     })
   })
 })

@@ -1,4 +1,4 @@
-import type { FindingCategory, ReviewComment, Severity } from '@/entities/review-comment/model/types'
+import type { FindingCategory, ReviewComment } from '@/entities/review-comment/model/types'
 
 /**
  * OpenAPI `Finding` JSON (`GET /api/v1/reviews/{id}/findings`).
@@ -28,13 +28,6 @@ export interface FindingPageWire {
   next_cursor: string | null
 }
 
-const SEVERITY: Record<FindingSeverityWire, Severity> = {
-  critical: 'critical',
-  high: 'warning',
-  medium: 'info',
-  low: 'info',
-}
-
 export function parseFinding(wire: FindingWire): ReviewComment {
   return {
     id: wire.id,
@@ -42,7 +35,7 @@ export function parseFinding(wire: FindingWire): ReviewComment {
     side: wire.side === 'OLD' ? 'old' : 'new',
     startLine: wire.start_line,
     line: wire.end_line,
-    severity: SEVERITY[wire.severity],
+    severity: wire.severity,
     category: wire.category,
     title: wire.title,
     explanation: wire.explanation,

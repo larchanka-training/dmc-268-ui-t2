@@ -15,7 +15,7 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     const comments = await ds.getReviewComments(MOCK_DEFAULT_REVIEW_ID)
     const files = (await ds.getDiff(MOCK_DEFAULT_REVIEW_ID)) ?? []
 
-    expect(new Set(comments.map((c) => c.severity))).toEqual(new Set(['critical', 'warning', 'info']))
+    expect(new Set(comments.map((c) => c.severity))).toEqual(new Set(['critical', 'high', 'medium', 'low']))
     expect(comments.some((c) => c.side === 'old')).toBe(true)
     expect(comments.some((c) => c.suggestedFix)).toBe(true)
 

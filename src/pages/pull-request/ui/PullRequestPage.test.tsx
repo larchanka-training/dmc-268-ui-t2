@@ -75,13 +75,33 @@ describe('PullRequestPage: metadata', () => {
     expect(screen.getByTestId('review-status')).toHaveTextContent('Ревью завершено')
   })
 
+  it('shows publication status next to the review status', async () => {
+    await renderLoaded()
+
+    expect(screen.getByTestId('publication-status')).toHaveAttribute('data-status', 'PUBLISHED')
+    expect(screen.getByTestId('publication-status')).toHaveTextContent('Опубликовано')
+  })
+
+  it('shows publication status independently of the review status', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getReview: async () => ({ ...TEST_REVIEW, status: 'COMPLETED', publicationStatus: 'FAILED' }),
+      }),
+    })
+
+    expect(await screen.findByTestId('publication-status')).toHaveAttribute('data-status', 'FAILED')
+    expect(screen.getByTestId('publication-status')).toHaveTextContent('Публикация не удалась')
+    expect(screen.getByTestId('review-status')).toHaveAttribute('data-status', 'COMPLETED')
+  })
+
   it('shows severity counters for all comments (including out-of-diff)', async () => {
     await renderLoaded()
 
     const summary = screen.getByTestId('severity-summary')
     expect(within(summary).getByRole('button', { name: /critical/i })).toHaveTextContent('2')
-    expect(within(summary).getByRole('button', { name: /warning/i })).toHaveTextContent('2')
-    expect(within(summary).getByRole('button', { name: /info/i })).toHaveTextContent('3')
+    expect(within(summary).getByRole('button', { name: /high/i })).toHaveTextContent('2')
+    expect(within(summary).getByRole('button', { name: /medium/i })).toHaveTextContent('1')
+    expect(within(summary).getByRole('button', { name: /low/i })).toHaveTextContent('2')
   })
 })
 
@@ -216,7 +236,7 @@ describe('PullRequestPage: AI comments under their lines (DoD)', () => {
       await renderLoaded(`${TEST_REVIEW_PATH}${query}`)
       const section = fileSection('src/api/user.ts')
 
-      // new:12 — три замечания, добавлены в порядке info, critical, warning
+      // new:12 — три замечания, добавлены в порядке medium, critical, high
       expect(stackAfter(diffRow(section, { next: 12 }))).toEqual(['c1', 'c2', 'c3'])
     })
 
@@ -328,7 +348,7 @@ describe('PullRequestPage: comments outside the diff', () => {
             side: 'new',
             startLine: 12,
             line: 12,
-            severity: 'info',
+            severity: 'low',
             category: 'correctness',
             title: 'Only',
             explanation: 'only',

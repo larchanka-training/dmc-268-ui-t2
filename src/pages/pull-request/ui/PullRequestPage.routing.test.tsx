@@ -206,8 +206,9 @@ describe('routing: #hash anchors', () => {
 describe('routing: severity counters jump to the first comment', () => {
   it.each([
     ['critical', 'c1'],
-    ['warning', 'c2'],
-    ['info', 'c5'],
+    ['high', 'c2'],
+    ['medium', 'c3'],
+    ['low', 'c5'],
   ])('%s → #comment-%s', async (severity, id) => {
     const { user, router } = renderWithRouter(TEST_REVIEW_PATH)
     await title()

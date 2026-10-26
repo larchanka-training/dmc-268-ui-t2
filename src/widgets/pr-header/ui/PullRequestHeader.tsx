@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react'
-import type { PullRequest, Review, ReviewStatus } from '@/entities/pull-request'
+import type { PublicationStatus, PullRequest, Review, ReviewStatus } from '@/entities/pull-request'
 import type { Severity } from '@/entities/review-comment'
 import { SeveritySummary } from '@/widgets/pr-header/ui/SeveritySummary'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
@@ -26,6 +26,27 @@ const STATUS_VARIANT: Record<ReviewStatus, 'secondary' | 'default' | 'success' |
   FAILED: 'destructive',
   SKIPPED: 'secondary',
 }
+
+const PUBLICATION_LABEL: Record<PublicationStatus, string> = {
+  NOT_READY: 'Не опубликовано',
+  PENDING: 'Публикуется',
+  PUBLISHED: 'Опубликовано',
+  PARTIAL: 'Опубликовано частично',
+  FAILED: 'Публикация не удалась',
+  UNKNOWN: 'Публикация: статус неизвестен',
+  SKIPPED: 'Публикация пропущена',
+}
+
+const PUBLICATION_VARIANT: Record<PublicationStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'outline'> =
+  {
+    NOT_READY: 'secondary',
+    PENDING: 'default',
+    PUBLISHED: 'success',
+    PARTIAL: 'outline',
+    FAILED: 'destructive',
+    UNKNOWN: 'outline',
+    SKIPPED: 'secondary',
+  }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -96,6 +117,13 @@ export function PullRequestHeader({ review, pullRequest: pr, counts, onSelectSev
       <div className="flex flex-wrap items-center gap-3">
         <Badge data-testid="review-status" data-status={review.status} variant={STATUS_VARIANT[review.status]}>
           {STATUS_LABEL[review.status]}
+        </Badge>
+        <Badge
+          data-testid="publication-status"
+          data-status={review.publicationStatus}
+          variant={PUBLICATION_VARIANT[review.publicationStatus]}
+        >
+          {PUBLICATION_LABEL[review.publicationStatus]}
         </Badge>
         <SeveritySummary counts={counts} onSelect={onSelectSeverity} />
       </div>

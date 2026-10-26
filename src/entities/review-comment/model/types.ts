@@ -1,5 +1,5 @@
-/** Шкала UI. Четыре уровня бэкенда сводятся к трём в `parseFinding`. */
-export type Severity = 'critical' | 'warning' | 'info'
+/** OpenAPI `Finding.severity`. */
+export type Severity = 'critical' | 'high' | 'medium' | 'low'
 
 export type FindingCategory = 'security' | 'correctness' | 'performance' | 'maintainability'
 
