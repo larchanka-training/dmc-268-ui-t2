@@ -9,9 +9,10 @@ export interface SplitDiffProps {
   hunks: DiffHunk[]
   tokens: HunkTokens[]
   byLine: AnchoredComments['byLine']
+  rangeLines: AnchoredComments['rangeLines']
 }
 
-export function SplitDiff({ hunks, tokens, byLine }: SplitDiffProps) {
+export function SplitDiff({ hunks, tokens, byLine, rangeLines }: SplitDiffProps) {
   const rowsByHunk = useMemo(() => hunks.map((hunk) => buildSplitRows(hunk.lines)), [hunks])
 
   return (
@@ -34,7 +35,11 @@ export function SplitDiff({ hunks, tokens, byLine }: SplitDiffProps) {
               const comments = commentsForRow(byLine, [row.left, row.right])
               return (
                 <Fragment key={rowIndex}>
-                  <SplitLineRow row={row} tokens={tokens[hunkIndex]} />
+                  <SplitLineRow
+                    row={row}
+                    tokens={tokens[hunkIndex]}
+                    inCommentRange={[row.left, row.right].some((cell) => cell !== null && rangeLines.has(cell))}
+                  />
                   {comments.length > 0 && <CommentRow comments={comments} colSpan={SPLIT_COLUMNS} />}
                 </Fragment>
               )

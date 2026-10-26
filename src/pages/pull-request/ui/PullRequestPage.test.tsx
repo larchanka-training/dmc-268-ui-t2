@@ -365,6 +365,47 @@ describe('PullRequestPage: comments outside the diff', () => {
   })
 })
 
+describe('PullRequestPage: comment line range', () => {
+  describe.each([
+    ['unified', ''],
+    ['split', '?view=split'],
+  ])('%s mode', (_mode, query) => {
+    it('marks every diff row of start_line…end_line and keeps the card under the last one', async () => {
+      renderWithRouter(`${TEST_REVIEW_PATH}${query}`, {
+        dataSource: createFakeDataSource({
+          getReviewComments: async () => [
+            {
+              id: 'range',
+              filePath: 'src/api/user.ts',
+              side: 'new',
+              startLine: 11,
+              line: 12,
+              severity: 'low',
+              category: 'correctness',
+              title: 'Range',
+              explanation: 'range',
+              evidence: 'range',
+              recommendation: 'range',
+            },
+          ],
+        }),
+      })
+      await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+      const section = fileSection('src/api/user.ts')
+
+      // в split del old:11 и add new:11 делят одну строку, поэтому ищем по new-номеру
+      const byNew = (n: number) => section.querySelector<HTMLElement>(`[data-testid="diff-row"][data-new-line="${n}"]`)!
+      const context = section.querySelector<HTMLElement>('[data-old-line="10"][data-new-line="10"]')!
+
+      expect(byNew(11)).toHaveAttribute('data-in-comment-range', 'true')
+      expect(byNew(12)).toHaveAttribute('data-in-comment-range', 'true')
+      expect(context).not.toHaveAttribute('data-in-comment-range')
+      expect(stackAfter(byNew(12))).toEqual(['range'])
+      expect(byNew(11).nextElementSibling).not.toHaveAttribute('data-testid', 'comment-row')
+    })
+  })
+})
+
 describe('PullRequestPage: states', () => {
   it('shows a loading state while data is pending', () => {
     renderWithRouter(TEST_REVIEW_PATH, {

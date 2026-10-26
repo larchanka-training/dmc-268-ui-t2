@@ -1,6 +1,6 @@
 import type { HunkTokens } from '@/entities/diff/lib/highlight-hunk'
 import type { DiffLine, SplitRow } from '@/entities/diff/model/types'
-import { LINE_MARKER, ROW_BG } from '@/entities/diff/ui/line-style'
+import { LINE_MARKER, RANGE_MARK, ROW_BG } from '@/entities/diff/ui/line-style'
 import { LineContent } from '@/entities/diff/ui/UnifiedLineRow'
 import { cn } from '@/shared/lib/cn'
 
@@ -42,10 +42,12 @@ function Cell({ line, tokens, side }: CellProps) {
 export interface SplitLineRowProps {
   row: SplitRow
   tokens: HunkTokens
+  /** Строка входит в диапазон start_line…end_line замечания AI */
+  inCommentRange?: boolean
 }
 
 /** Одна строка side-by-side: old№ | код | new№ | код. */
-export function SplitLineRow({ row, tokens }: SplitLineRowProps) {
+export function SplitLineRow({ row, tokens, inCommentRange }: SplitLineRowProps) {
   const { left, right } = row
   return (
     <tr
@@ -53,9 +55,10 @@ export function SplitLineRow({ row, tokens }: SplitLineRowProps) {
       data-line-type={rowType(row)}
       data-old-line={left?.oldNo ?? undefined}
       data-new-line={right?.newNo ?? undefined}
+      data-in-comment-range={inCommentRange ? 'true' : undefined}
       className="leading-5"
     >
-      <td className={gutter}>{left?.oldNo}</td>
+      <td className={cn(gutter, inCommentRange && RANGE_MARK)}>{left?.oldNo}</td>
       <Cell line={left} tokens={tokens} side="left" />
       <td className={gutter}>{right?.newNo}</td>
       <Cell line={right} tokens={tokens} side="right" />

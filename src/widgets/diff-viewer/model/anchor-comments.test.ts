@@ -118,6 +118,48 @@ describe('anchorComments', () => {
     expect(stack?.map((x) => x.id)).toEqual(['c', 'h1', 'h2', 'm', 'l'])
   })
 
+  describe('line ranges (start_line…end_line)', () => {
+    it('keeps the card under end_line and marks every diff line of the range', () => {
+      const c = comment({ side: 'new', startLine: 11, line: 13 })
+      const result = anchorComments(files, [c])
+
+      expect(result.byLine.get(lineOf(a, 'keep-12-old'))).toEqual([c])
+      expect(result.byLine.size).toBe(1)
+      for (const content of ['added-11', 'added-12', 'keep-12-old']) {
+        expect(result.rangeLines.has(lineOf(a, content))).toBe(true)
+      }
+      expect(result.rangeLines.has(lineOf(a, 'keep-10'))).toBe(false)
+      expect(result.rangeLines.has(lineOf(a, 'keep-13-old'))).toBe(false)
+    })
+
+    it('marks only lines of the comment side (old range skips added lines)', () => {
+      const c = comment({ side: 'old', startLine: 10, line: 11 })
+      const result = anchorComments(files, [c])
+
+      expect(result.rangeLines.has(lineOf(a, 'keep-10'))).toBe(true)
+      expect(result.rangeLines.has(lineOf(a, 'removed-11'))).toBe(true)
+      expect(result.rangeLines.has(lineOf(a, 'added-11'))).toBe(false)
+    })
+
+    it('falls back to the last diff line of the range when end_line is outside the diff', () => {
+      // new 11…20: в diff попадают 11, 12, 13, 14; 15…20 вне diff
+      const c = comment({ side: 'new', startLine: 12, line: 20 })
+      const result = anchorComments(files, [c])
+
+      expect(result.byLine.get(lineOf(a, 'keep-13-old'))).toEqual([c])
+      expect(result.outOfDiffByFile.size).toBe(0)
+      expect(result.rangeLines.has(lineOf(a, 'added-12'))).toBe(true)
+    })
+
+    it('is out-of-diff only when no line of the range is in the diff', () => {
+      const c = comment({ side: 'new', startLine: 40, line: 45 })
+      const result = anchorComments(files, [c])
+
+      expect(result.outOfDiffByFile.get('src/a.ts')).toEqual([c])
+      expect(result.rangeLines.size).toBe(0)
+    })
+  })
+
   it('puts a comment on a line outside the diff into the file-level out-of-diff list', () => {
     const c = comment({ line: 999 })
     const result = anchorComments(files, [c])

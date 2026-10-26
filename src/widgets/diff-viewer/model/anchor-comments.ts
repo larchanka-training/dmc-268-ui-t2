@@ -8,6 +8,8 @@ export interface AnchoredComments {
   outOfDiffByFile: Map<string, ReviewComment[]>
   /** Замечания к файлам, которых нет в diff */
   orphans: ReviewComment[]
+  /** Строки diff, попавшие в диапазон start_line…end_line хотя бы одного замечания (с учётом стороны) */
+  rangeLines: Set<DiffLine>
 }
 
 const lineKey = (side: 'old' | 'new', line: number) => `${side}:${line}`
@@ -57,6 +59,7 @@ export function anchorComments(files: readonly DiffFile[], comments: readonly Re
   const byLine = new Map<DiffLine, ReviewComment[]>()
   const outOfDiff = new Map<string, ReviewComment[]>()
   const orphans: ReviewComment[] = []
+  const rangeLines = new Set<DiffLine>()
 
   for (const comment of comments) {
     const file = resolveFile(comment)
@@ -69,15 +72,22 @@ export function anchorComments(files: readonly DiffFile[], comments: readonly Re
       index = buildLineIndex(file)
       indexes.set(file, index)
     }
-    const line = index.get(lineKey(comment.side, comment.line))
-    if (line) pushTo(byLine, line, comment)
+    // Карточка стоит под последней строкой диапазона, которая есть в diff (обычно это end_line)
+    let anchor: DiffLine | undefined
+    for (let n = Math.min(comment.startLine, comment.line); n <= comment.line; n += 1) {
+      const line = index.get(lineKey(comment.side, n))
+      if (!line) continue
+      rangeLines.add(line)
+      anchor = line
+    }
+    if (anchor) pushTo(byLine, anchor, comment)
     else pushTo(outOfDiff, file.path, comment)
   }
 
   for (const [line, list] of byLine) byLine.set(line, sortBySeverity(list))
   for (const [path, list] of outOfDiff) outOfDiff.set(path, sortBySeverity(list))
 
-  return { byLine, outOfDiffByFile: outOfDiff, orphans: sortBySeverity(orphans) }
+  return { byLine, outOfDiffByFile: outOfDiff, orphans: sortBySeverity(orphans), rangeLines }
 }
 
 /** Замечания под одной строкой таблицы (в split — под парой ячеек), одной стопкой. */

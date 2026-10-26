@@ -89,7 +89,7 @@ export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionPro
             <p className="px-3 py-4 text-sm text-muted-foreground">Содержимое файла не изменилось</p>
           ) : (
             <div className="overflow-x-auto">
-              <Diff hunks={file.hunks} tokens={tokens} byLine={anchored.byLine} />
+              <Diff hunks={file.hunks} tokens={tokens} byLine={anchored.byLine} rangeLines={anchored.rangeLines} />
             </div>
           )}
           {outOfDiff.length > 0 && <OutOfDiffComments comments={outOfDiff} testId="out-of-diff-file" />}

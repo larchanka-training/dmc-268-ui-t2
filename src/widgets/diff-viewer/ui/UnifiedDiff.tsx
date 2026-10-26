@@ -9,9 +9,10 @@ export interface UnifiedDiffProps {
   hunks: DiffHunk[]
   tokens: HunkTokens[]
   byLine: AnchoredComments['byLine']
+  rangeLines: AnchoredComments['rangeLines']
 }
 
-export function UnifiedDiff({ hunks, tokens, byLine }: UnifiedDiffProps) {
+export function UnifiedDiff({ hunks, tokens, byLine, rangeLines }: UnifiedDiffProps) {
   return (
     <table
       data-testid="diff-table"
@@ -27,7 +28,11 @@ export function UnifiedDiff({ hunks, tokens, byLine }: UnifiedDiffProps) {
               const comments = commentsForRow(byLine, [line])
               return (
                 <Fragment key={lineIndex}>
-                  <UnifiedLineRow line={line} tokens={tokens[hunkIndex].get(line)} />
+                  <UnifiedLineRow
+                    line={line}
+                    tokens={tokens[hunkIndex].get(line)}
+                    inCommentRange={rangeLines.has(line)}
+                  />
                   {comments.length > 0 && <CommentRow comments={comments} colSpan={UNIFIED_COLUMNS} />}
                 </Fragment>
               )
