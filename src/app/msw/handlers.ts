@@ -6,6 +6,15 @@ import {
   AUTH_REFRESH_PATH,
   ME_PATH,
 } from '@/entities/session'
+import {
+  MOCK_PULL_REQUESTS,
+  MOCK_REPOSITORY_ID,
+  MOCK_REVIEWS,
+  REPOSITORY_PULL_REQUESTS_ROUTE,
+  REVIEW_DIFF_ROUTE,
+  REVIEW_FINDINGS_ROUTE,
+  REVIEW_ROUTE,
+} from '@/entities/pull-request'
 import { REPOSITORIES_AVAILABLE_PATH, REPOSITORIES_CONNECT_PATH, REPOSITORIES_PATH } from '@/entities/repository'
 import {
   MSW_CSRF_TOKEN,
@@ -144,5 +153,45 @@ export const reposHandlers = [
       return new HttpResponse(null, { status: 422 })
     }
     return HttpResponse.json(result.repository, { status: result.status === 'created' ? 201 : 200 })
+  }),
+]
+
+/** OpenAPI `Error` envelope. */
+function apiError(status: number, code: string, message: string) {
+  return HttpResponse.json({ code, message, request_id: 'req_msw', retryable: false, retry_after: null }, { status })
+}
+
+const notFound = () => apiError(404, 'RESOURCE_NOT_FOUND', 'Resource was not found.')
+
+/**
+ * Stubbed reviews seams (wire fixtures из `entities/pull-request`, без пагинации):
+ * - GET /api/v1/reviews/:id           → ReviewDetail
+ * - GET /api/v1/reviews/:id/findings  → FindingPage
+ * - GET /api/v1/reviews/:id/diff      → Diff (404, пока diff не сохранён)
+ * - GET /api/v1/repositories/:id/pull-requests → PullRequestPage
+ */
+export const reviewHandlers = [
+  http.get(REVIEW_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const fixture = MOCK_REVIEWS[String(params.id)]
+    return fixture ? HttpResponse.json(fixture.review) : notFound()
+  }),
+
+  http.get(REVIEW_FINDINGS_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const fixture = MOCK_REVIEWS[String(params.id)]
+    return fixture ? HttpResponse.json({ items: fixture.findings, next_cursor: null }) : notFound()
+  }),
+
+  http.get(REVIEW_DIFF_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const diff = MOCK_REVIEWS[String(params.id)]?.diff
+    return diff ? HttpResponse.json(diff) : notFound()
+  }),
+
+  http.get(REPOSITORY_PULL_REQUESTS_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    if (params.id !== MOCK_REPOSITORY_ID) return notFound()
+    return HttpResponse.json({ items: MOCK_PULL_REQUESTS, next_cursor: null })
   }),
 ]

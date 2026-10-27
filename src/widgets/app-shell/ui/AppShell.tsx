@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogoutButton } from '@/features/logout'
 import { useMeQuery } from '@/entities/session'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
@@ -16,7 +16,9 @@ export function AppShell() {
   const meQuery = useMeQuery()
   const me = meQuery.data
   const reposActive = location.pathname === '/repos' || location.pathname.startsWith('/repos/')
-  const reviewActive = location.pathname === '/review' || location.pathname.startsWith('/review/')
+  const reviewActive = ['/review', '/reviews'].some(
+    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
+  )
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -49,7 +51,8 @@ export function AppShell() {
           >
             Repos
           </NavLink>
-          <NavLink
+          {/* Link, не NavLink: NavLink гасит aria-current, когда сам не активен (/reviews/* ≠ /review) */}
+          <Link
             to="/review"
             className={cn(
               'rounded-md px-2 py-1.5 text-sm font-medium',
@@ -60,7 +63,7 @@ export function AppShell() {
             aria-current={reviewActive ? 'page' : undefined}
           >
             Reviews/PRs
-          </NavLink>
+          </Link>
         </aside>
 
         <main className="min-w-0 flex-1 overflow-auto p-6">
