@@ -5,6 +5,7 @@ import {
   MOCK_PULL_REQUESTS,
   MOCK_REPOSITORY_ID,
   MOCK_REVIEWS,
+  ReviewHttpError,
   ReviewNotFoundError,
 } from '@/entities/pull-request'
 import type { PullRequestWire, ReviewDetailWire } from '@/entities/pull-request/model/types'
@@ -71,6 +72,20 @@ describe('ApiPullRequestDataSource', () => {
     await expect(ds.getReview('missing')).rejects.toThrow(new ReviewNotFoundError('missing'))
   })
 
+  it('getReview rejects with ReviewHttpError on non-404 failures', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 500 })),
+    )
+
+    const error = await ds.getReview('rev-1').then(
+      () => null,
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(ReviewHttpError)
+    expect(error).toMatchObject({ status: 500 })
+  })
+
   it('getDiff returns null on 404', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 404 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -89,6 +104,20 @@ describe('ApiPullRequestDataSource', () => {
     )
 
     await expect(ds.getDiff('rev-1')).resolves.toBeNull()
+  })
+
+  it('getDiff rejects with ReviewHttpError on unexpected failures', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 503 })),
+    )
+
+    const error = await ds.getDiff('rev-1').then(
+      () => null,
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(ReviewHttpError)
+    expect(error).toMatchObject({ status: 503 })
   })
 
   it('getDiff fetches with credentials and returns parsed files', async () => {
@@ -124,6 +153,20 @@ describe('ApiPullRequestDataSource', () => {
       additions: 1,
       deletions: 0,
     })
+  })
+
+  it('getReviewComments rejects with ReviewHttpError when a page fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 401 })),
+    )
+
+    const error = await ds.getReviewComments('rev-1').then(
+      () => null,
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(ReviewHttpError)
+    expect(error).toMatchObject({ status: 401 })
   })
 
   it('getReviewComments follows next_cursor until null', async () => {
@@ -162,6 +205,20 @@ describe('ApiPullRequestDataSource', () => {
       '/api/v1/reviews/rev-1/findings?limit=20',
       '/api/v1/reviews/rev-1/findings?limit=20&cursor=page%2B2%3D',
     ])
+  })
+
+  it('getPullRequest rejects with ReviewHttpError when a page fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 502 })),
+    )
+
+    const error = await ds.getPullRequest('repo-1', 42).then(
+      () => null,
+      (err: unknown) => err,
+    )
+    expect(error).toBeInstanceOf(ReviewHttpError)
+    expect(error).toMatchObject({ status: 502 })
   })
 
   it('getPullRequest walks pages until the number is found', async () => {

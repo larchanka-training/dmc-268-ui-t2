@@ -24,6 +24,16 @@ export class NotImplementedError extends NonRetryableError {
   }
 }
 
+export class ReviewHttpError extends Error {
+  readonly status: number
+
+  constructor(status: number, message?: string) {
+    super(message ?? `Review request failed (${status})`)
+    this.name = 'ReviewHttpError'
+    this.status = status
+  }
+}
+
 /** OpenAPI `Limit` default. A cursor is valid only for the limit it was issued with. */
 const PAGE_LIMIT = 20
 
@@ -49,6 +59,9 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
     if (response.status === 404) {
       throw new ReviewNotFoundError(reviewId)
     }
+    if (!response.ok) {
+      throw new ReviewHttpError(response.status)
+    }
     const wire = (await response.json()) as ReviewDetailWire
     return parseReview(wire)
   }
@@ -57,6 +70,9 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
     let cursor: string | null = null
     do {
       const response = await apiFetch(pageUrl(repositoryPullRequestsPath(repositoryId), cursor))
+      if (!response.ok) {
+        throw new ReviewHttpError(response.status)
+      }
       const page = (await response.json()) as PullRequestPageWire
       const match = page.items.find((item) => item.number === number)
       if (match) {
@@ -72,6 +88,9 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
     if (response.status === 404 || response.status === 410) {
       return null
     }
+    if (!response.ok) {
+      throw new ReviewHttpError(response.status)
+    }
     const wire = (await response.json()) as DiffWire
     return parseDiff(wire)
   }
@@ -81,6 +100,9 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
     let cursor: string | null = null
     do {
       const response = await apiFetch(pageUrl(reviewFindingsPath(reviewId), cursor))
+      if (!response.ok) {
+        throw new ReviewHttpError(response.status)
+      }
       const page = (await response.json()) as FindingPageWire
       comments.push(...page.items.map(parseFinding))
       cursor = page.next_cursor
