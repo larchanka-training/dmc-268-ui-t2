@@ -1,13 +1,10 @@
-import {
-  ApiPullRequestDataSource,
-  MockPullRequestDataSource,
-  type PullRequestDataSource,
-} from '@/entities/pull-request'
+import { ApiPullRequestDataSource, type PullRequestDataSource } from '@/entities/pull-request'
 
 /**
- * Источник данных выбирается флагом `VITE_DATA_SOURCE=mock|api` (по умолчанию mock).
- * В dev режим `api` обслуживает MSW (`reviewHandlers`) теми же wire-фикстурами.
+ * Same idea as repos/session: always the HTTP client.
+ * Dev MSW answers `/api/v1` fetches; production nginx proxies to the real API.
+ * In-memory `MockPullRequestDataSource` stays for tests that inject it.
  */
 export function createDataSource(): PullRequestDataSource {
-  return import.meta.env.VITE_DATA_SOURCE === 'api' ? new ApiPullRequestDataSource() : new MockPullRequestDataSource()
+  return new ApiPullRequestDataSource()
 }

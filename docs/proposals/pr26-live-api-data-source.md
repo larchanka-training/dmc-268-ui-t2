@@ -25,7 +25,7 @@ PR page should follow that, inside the existing `PullRequestDataSource` seam fro
 ## Current
 
 - Pull Request page, diff viewer, file list, finding cards, and parsers shipped in PR #26.
-- Default data source is in-memory `MockPullRequestDataSource` (`VITE_DATA_SOURCE` unset → mock). That flag is from #26; repos/session from #17 have no equivalent — they always HTTP + MSW.
+- App previously defaulted to in-memory `MockPullRequestDataSource` via `VITE_DATA_SOURCE`; **decided:** always HTTP like `/repos`.
 - `ApiPullRequestDataSource` is the intended HTTP adapter but every method rejects with `NotImplementedError` — no `fetch`.
 - Path helpers and parsers already exist (`paths.ts`, `parseReview`, `parsePullRequest`, `parseDiff`, `parseFinding`).
 - MSW `reviewHandlers` already mirror fixtures for when the HTTP client exists; the stub never reaches them.
@@ -71,7 +71,7 @@ Out of this slice (documented elsewhere, not blockers):
 |---|---|
 | Implement `ApiPullRequestDataSource` like `repository-client` / `session-client`: relative paths, `credentials: 'include'`, wire parsers, `HttpError`-style status mapping, findings + open-PR list cursor walks until `next_cursor` is null | Same pattern as PR #17; closes NotImplemented. |
 | Map HTTP status: review 404 → `ReviewNotFoundError`; diff 404 → `null` (`DiffPending`); diff 410 → also `null` this slice so findings/header still load (not a page error). **Known gap:** SYSTEM_DESIGN wants “diff unavailable/expired” copy; today’s `DiffPending` says «ещё не сохранён» — distinct UI is a follow-up. Other errors → page error. | Soft vs hard failures; honest about retention copy. |
-| Keep `VITE_DATA_SOURCE` as #26 already shipped it: unset/mock → in-memory mock; `api` → this HTTP client (DEV → MSW `reviewHandlers`, same as repos hitting MSW). Do **not** add a second committed live-switch or Vite proxy in this PR. | Matches #17’s “client is MSW-unaware; local real API is optional local edits.” |
+| Always `ApiPullRequestDataSource` from `createDataSource()` (dev MSW / prod nginx). Keep `MockPullRequestDataSource` for injected tests only. No committed Vite proxy. | Same as `/repos`: HTTP client is MSW-unaware. |
 | Tests: stub `fetch` (or MSW) for happy path + 404/410 + multi-page cursor — same style as `repository-client.test.ts` | Locks adapter without staging. |
 
 ### Explicitly out of this first slice
@@ -93,9 +93,9 @@ Out of this slice (documented elsewhere, not blockers):
 
 ## Acceptance (falsifiable)
 
-1. `VITE_DATA_SOURCE=api` + MSW (or stubbed `fetch`) loads a completed review through `ApiPullRequestDataSource` without `NotImplementedError`.
+1. `createDataSource()` always returns `ApiPullRequestDataSource`; MSW or stubbed `fetch` loads a completed review without `NotImplementedError`.
 2. Diff 404 → `null` → pending; diff 410 → `null` (findings still load); review 404 → not-found; findings and open-PR list walk `next_cursor` until null.
-3. Mock default unchanged when env unset.
+3. Unexpected non-OK statuses throw `ReviewHttpError` with `status`.
 4. Client shape matches PR #17: `credentials: 'include'`, relative `/api/v1` paths, no MSW imports in the client.
 5. No API OpenAPI/handler change required; no committed Vite proxy required.
 6. `pnpm` lint / types / tests green for touched packages.
@@ -108,4 +108,4 @@ Out of this slice (documented elsewhere, not blockers):
 | This PR scope | Reads-only adapter. Polling / 401 page wiring / distinct 410 copy stay out. |
 | 410 in this slice | Interim `null` + documented unavailable-copy gap. |
 | Local real backend | Uncommitted `local-ui-api.md` path (same as main page). |
-| `VITE_DATA_SOURCE` | Keep as #26’s mock vs HTTP selector; HTTP mode is the #17-equivalent client. |
+| App data source | Always `ApiPullRequestDataSource` (same as `/repos` always fetching). Mock stays test-only. |
