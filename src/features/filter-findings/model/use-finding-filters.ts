@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import type { FindingFilters } from '@/features/filter-findings/model/filter'
 import { findingFiltersFromSearchParams, withFindingFilters } from '@/features/filter-findings/model/search-params'
 

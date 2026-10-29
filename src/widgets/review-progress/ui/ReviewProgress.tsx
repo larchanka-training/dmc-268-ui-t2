@@ -1,13 +1,24 @@
-import { AlertTriangle, Check, CircleDashed, Loader2, MinusCircle, Radio, RefreshCw, XCircle } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  CircleDashed,
+  CircleHelp,
+  Loader2,
+  MinusCircle,
+  Radio,
+  RefreshCw,
+  XCircle,
+} from 'lucide-react'
 import {
   getReviewStages,
-  type ReviewDetail,
+  type Review,
+  type ReviewReasonCode,
   type ReviewStage,
   type ReviewStageId,
   type ReviewStageState,
   type ReviewStatus,
   type ReviewTransport,
-} from '@/entities/review'
+} from '@/entities/pull-request'
 import { cn } from '@/shared/lib/cn'
 
 const stageLabel: Record<ReviewStageId, string> = {
@@ -23,6 +34,7 @@ const stateLabel: Record<ReviewStageState, string> = {
   partial: 'частично',
   failed: 'ошибка',
   skipped: 'пропущено',
+  unknown: 'статус неизвестен',
 }
 
 const statusLabel: Record<ReviewStatus, string> = {
@@ -43,6 +55,22 @@ const circleClass: Record<ReviewStageState, string> = {
   partial: 'border-transparent bg-diff-del-bg text-diff-del-fg',
   failed: 'border-transparent bg-destructive text-destructive-foreground',
   skipped: 'border-border bg-muted text-muted-foreground',
+  unknown: 'border-dashed border-muted-foreground bg-background text-muted-foreground',
+}
+
+const reasonLabel: Record<ReviewReasonCode, string> = {
+  QUEUE_DEADLINE_EXCEEDED: 'ревью слишком долго ждало в очереди',
+  VCS_RATE_LIMITED: 'превышен лимит запросов к GitHub',
+  VCS_UNAVAILABLE: 'GitHub недоступен',
+  VCS_ACCESS_DENIED: 'нет доступа к репозиторию',
+  PR_STALE_OR_CLOSED: 'PR закрыт или в нём появились новые коммиты',
+  DIFF_UNTRUSTWORTHY: 'дифф от провайдера не прошёл проверку',
+  SOURCE_BLOB_UNAVAILABLE: 'не удалось получить исходный файл',
+  AST_PARSE_FAILED: 'не удалось разобрать код',
+  LLM_TIMEOUT: 'модель не ответила вовремя',
+  LLM_UNAVAILABLE: 'модель недоступна',
+  LLM_OUTPUT_INVALID: 'модель вернула некорректный ответ',
+  ANALYSIS_DEADLINE_EXCEEDED: 'анализ не уложился в отведённое время',
 }
 
 function StageIcon({ state }: { state: ReviewStageState }) {
@@ -58,12 +86,14 @@ function StageIcon({ state }: { state: ReviewStageState }) {
       return <XCircle className={className} aria-hidden />
     case 'skipped':
       return <MinusCircle className={className} aria-hidden />
+    case 'unknown':
+      return <CircleHelp className={className} aria-hidden />
     default:
       return <CircleDashed className={className} aria-hidden />
   }
 }
 
-function stageDetail(stage: ReviewStage, review: ReviewDetail): string | null {
+function stageDetail(stage: ReviewStage, review: Review): string | null {
   if (stage.id === 'context' && stage.state === 'active') {
     return statusLabel[review.status]
   }
@@ -74,7 +104,7 @@ function stageDetail(stage: ReviewStage, review: ReviewDetail): string | null {
 }
 
 export interface ReviewProgressProps {
-  review: ReviewDetail
+  review: Review
   transport: ReviewTransport
   /** Nothing will change any more; hide the live indicator. */
   settled: boolean
@@ -154,6 +184,13 @@ export function ReviewProgress({ review, transport, settled }: ReviewProgressPro
           )
         })}
       </ol>
+
+      {review.error && (
+        <p data-testid="review-error-reason" className="mt-3 text-sm text-destructive">
+          Причина: {reasonLabel[review.error.reasonCode] ?? review.error.reasonCode}
+          {review.error.retryable && <span className="text-muted-foreground"> — можно повторить позже</span>}
+        </p>
+      )}
     </section>
   )
 }

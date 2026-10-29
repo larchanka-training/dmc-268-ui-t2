@@ -1,5 +1,4 @@
 import { http, HttpResponse } from 'msw'
-import { sse } from 'msw/sse'
 import {
   AUTH_GITHUB_CALLBACK_PATH,
   AUTH_GITHUB_START_PATH,
@@ -7,6 +6,15 @@ import {
   AUTH_REFRESH_PATH,
   ME_PATH,
 } from '@/entities/session'
+import {
+  MOCK_PULL_REQUESTS,
+  MOCK_REPOSITORY_ID,
+  MOCK_REVIEWS,
+  REPOSITORY_PULL_REQUESTS_ROUTE,
+  REVIEW_DIFF_ROUTE,
+  REVIEW_FINDINGS_ROUTE,
+  REVIEW_ROUTE,
+} from '@/entities/pull-request'
 import { REPOSITORIES_AVAILABLE_PATH, REPOSITORIES_CONNECT_PATH, REPOSITORIES_PATH } from '@/entities/repository'
 import {
   MSW_CSRF_TOKEN,
@@ -23,13 +31,6 @@ import {
   listAvailableRepositoryPage,
   listConnectedRepositoryPage,
 } from '@/app/msw/repos-store'
-import {
-  hasCapturedDiff,
-  mockReviewDiffWire,
-  mockReviewFindingsWire,
-  reviewDetailWire,
-  reviewSnapshotWire,
-} from '@/app/msw/review-store'
 import { resolveReturnUrl } from '@/shared/lib/return-url'
 
 function isAuthenticated(cookies: Record<string, string>): boolean {
@@ -155,86 +156,42 @@ export const reposHandlers = [
   }),
 ]
 
-const REVIEW_PATH = '/api/v1/reviews/:reviewId'
-const SNAPSHOT_TICK_MS = 250
-
-function notFound() {
-  return HttpResponse.json(
-    {
-      code: 'RESOURCE_NOT_FOUND',
-      message: 'Review is unavailable.',
-      request_id: 'msw',
-      retryable: false,
-      retry_after: null,
-    },
-    { status: 404 },
-  )
+/** OpenAPI `Error` envelope. */
+function apiError(status: number, code: string, message: string) {
+  return HttpResponse.json({ code, message, request_id: 'req_msw', retryable: false, retry_after: null }, { status })
 }
 
+const notFound = () => apiError(404, 'RESOURCE_NOT_FOUND', 'Resource was not found.')
+
 /**
- * Stubbed reviews seams (see `review-store.ts` for the scenarios):
- * - GET /api/v1/reviews/{id}
- * - GET /api/v1/reviews/{id}/diff
- * - GET /api/v1/reviews/{id}/findings
- * - GET /api/v1/reviews/{id}/events/stream (SSE `review.snapshot`)
+ * Stubbed reviews seams (wire fixtures из `entities/pull-request`, без пагинации):
+ * - GET /api/v1/reviews/:id           → ReviewDetail
+ * - GET /api/v1/reviews/:id/findings  → FindingPage
+ * - GET /api/v1/reviews/:id/diff      → Diff (404, пока diff не сохранён)
+ * - GET /api/v1/repositories/:id/pull-requests → PullRequestPage
  */
-export const reviewsHandlers = [
-  http.get(REVIEW_PATH, ({ cookies, params }) => {
-    if (!isAuthenticated(cookies)) {
-      return new HttpResponse(null, { status: 401 })
-    }
-    const review = reviewDetailWire(String(params.reviewId))
-    return review ? HttpResponse.json(review) : notFound()
+export const reviewHandlers = [
+  http.get(REVIEW_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const fixture = MOCK_REVIEWS[String(params.id)]
+    return fixture ? HttpResponse.json(fixture.review) : notFound()
   }),
 
-  http.get(`${REVIEW_PATH}/diff`, ({ cookies, params }) => {
-    if (!isAuthenticated(cookies)) {
-      return new HttpResponse(null, { status: 401 })
-    }
-    return hasCapturedDiff(String(params.reviewId)) ? HttpResponse.json(mockReviewDiffWire) : notFound()
+  http.get(REVIEW_FINDINGS_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const fixture = MOCK_REVIEWS[String(params.id)]
+    return fixture ? HttpResponse.json({ items: fixture.findings, next_cursor: null }) : notFound()
   }),
 
-  http.get(`${REVIEW_PATH}/findings`, ({ cookies, params }) => {
-    if (!isAuthenticated(cookies)) {
-      return new HttpResponse(null, { status: 401 })
-    }
-    const review = reviewDetailWire(String(params.reviewId))
-    if (!review) {
-      return notFound()
-    }
-    const done = review.status === 'COMPLETED' || review.status === 'PARTIAL'
-    return HttpResponse.json({ items: done ? mockReviewFindingsWire : [], next_cursor: null })
+  http.get(REVIEW_DIFF_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    const diff = MOCK_REVIEWS[String(params.id)]?.diff
+    return diff ? HttpResponse.json(diff) : notFound()
   }),
 
-  sse<{ 'review.snapshot': unknown }>(`${REVIEW_PATH}/events/stream`, ({ client, cookies, params }) => {
-    const reviewId = String(params.reviewId)
-    if (!isAuthenticated(cookies) || reviewId === 'demo-review-polling' || !reviewSnapshotWire(reviewId)) {
-      // EventSource sees a failed connection; the UI must fall back to polling.
-      client.error()
-      return
-    }
-    let lastSequence = -1
-    const tick = () => {
-      const snapshot = reviewSnapshotWire(reviewId)
-      const review = reviewDetailWire(reviewId)
-      if (!snapshot || !review) {
-        client.close()
-        return
-      }
-      if (snapshot.sequence !== lastSequence) {
-        lastSequence = snapshot.sequence
-        client.send({ event: 'review.snapshot', data: snapshot })
-      }
-      const settled =
-        review.finished_at !== null &&
-        (snapshot.publication_status === 'PUBLISHED' ||
-          (snapshot.status === 'FAILED' && snapshot.publication_status === 'NOT_READY'))
-      if (settled) {
-        client.close()
-        return
-      }
-      setTimeout(tick, SNAPSHOT_TICK_MS)
-    }
-    tick()
+  http.get(REPOSITORY_PULL_REQUESTS_ROUTE, ({ cookies, params }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    if (params.id !== MOCK_REPOSITORY_ID) return notFound()
+    return HttpResponse.json({ items: MOCK_PULL_REQUESTS, next_cursor: null })
   }),
 ]

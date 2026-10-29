@@ -1,12 +1,12 @@
-import { FINDING_SEVERITIES, type FindingSeverity } from '@/entities/finding'
+import { SEVERITIES, type Severity } from '@/entities/review-comment'
 import type { FindingFilters } from '@/features/filter-findings/model/filter'
 
 const FILE_PARAM = 'file'
 const SEVERITY_PARAM = 'severity'
 const QUERY_PARAM = 'q'
 
-function isSeverity(value: string): value is FindingSeverity {
-  return (FINDING_SEVERITIES as readonly string[]).includes(value)
+function isSeverity(value: string): value is Severity {
+  return (SEVERITIES as readonly string[]).includes(value)
 }
 
 export function findingFiltersFromSearchParams(params: URLSearchParams): FindingFilters {

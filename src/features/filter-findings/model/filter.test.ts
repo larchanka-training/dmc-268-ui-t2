@@ -1,35 +1,34 @@
 import { expect, test } from 'vitest'
-import type { Finding } from '@/entities/finding'
+import type { ReviewComment } from '@/entities/review-comment'
 import { EMPTY_FINDING_FILTERS, filterFindings, hasActiveFindingFilters } from '@/features/filter-findings'
 
-function finding(id: string, overrides: Partial<Finding> = {}): Finding {
+function finding(id: string, overrides: Partial<ReviewComment> = {}): ReviewComment {
   return {
     id,
-    path: 'src/api/user.ts',
+    filePath: 'src/api/user.ts',
     side: 'new',
     startLine: 1,
-    endLine: 1,
+    line: 1,
     category: 'correctness',
     severity: 'medium',
     title: `Finding ${id}`,
     explanation: '',
     evidence: '',
     recommendation: '',
-    proposedDiffFix: null,
     ...overrides,
   }
 }
 
-const ids = (findings: Finding[]) => findings.map((item) => item.id)
+const ids = (findings: ReviewComment[]) => findings.map((item) => item.id)
 
 test('without filters every finding is shown', () => {
-  const findings = [finding('a'), finding('b', { path: 'src/other.ts', severity: 'low' })]
+  const findings = [finding('a'), finding('b', { filePath: 'src/other.ts', severity: 'low' })]
 
   expect(ids(filterFindings(findings, EMPTY_FINDING_FILTERS))).toEqual(['a', 'b'])
 })
 
 test('file filter keeps only findings in the selected file', () => {
-  const findings = [finding('a'), finding('b', { path: 'src/other.ts' }), finding('c')]
+  const findings = [finding('a'), finding('b', { filePath: 'src/other.ts' }), finding('c')]
 
   expect(ids(filterFindings(findings, { ...EMPTY_FINDING_FILTERS, path: 'src/api/user.ts' }))).toEqual(['a', 'c'])
 })

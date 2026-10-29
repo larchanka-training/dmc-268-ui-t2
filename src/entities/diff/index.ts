@@ -1,10 +1,10 @@
-export type {
-  DiffFile,
-  DiffFileStatus,
-  DiffHunk,
-  DiffLine,
-  DiffLineType,
-  ContextGap,
-} from '@/entities/diff/model/types'
-export { reviewDiffQueryKey, useReviewDiffQuery, useDiffContextQuery } from '@/entities/diff/api/queries'
-export { fetchReviewDiff, reviewDiffPath } from '@/entities/diff/api/diff-client'
+export type { DiffFile, DiffFileStatus, DiffHunk, DiffLine, DiffLineType, SplitRow } from '@/entities/diff/model/types'
+export type { DiffFileWire, DiffHunkWire, DiffLineWire, DiffWire } from '@/entities/diff/model/wire'
+export { parseUnifiedDiff } from '@/entities/diff/lib/parse-unified-diff'
+export { parseDiff } from '@/entities/diff/lib/parse-diff-wire'
+export { resultingCode } from '@/entities/diff/lib/resulting-code'
+export { buildSplitRows } from '@/entities/diff/lib/build-split-rows'
+export { highlightHunk, type HunkTokens } from '@/entities/diff/lib/highlight-hunk'
+export { languageFromPath, tokenizeLines, type HighlightToken } from '@/entities/diff/lib/tokenize'
+export { SplitLineRow, SPLIT_COLUMNS } from '@/entities/diff/ui/SplitLineRow'
+export { UnifiedLineRow, UnifiedColGroup, UNIFIED_COLUMNS } from '@/entities/diff/ui/UnifiedLineRow'

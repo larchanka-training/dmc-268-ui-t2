@@ -1,11 +1,5 @@
 import { Search, X } from 'lucide-react'
-import {
-  FINDING_SEVERITIES,
-  severityBadgeClass,
-  severityLabel,
-  type Finding,
-  type FindingSeverity,
-} from '@/entities/finding'
+import { SEVERITIES, SEVERITY_LABEL, SEVERITY_TONE, type ReviewComment, type Severity } from '@/entities/review-comment'
 import {
   EMPTY_FINDING_FILTERS,
   hasActiveFindingFilters,
@@ -14,7 +8,7 @@ import {
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/cn'
 
-function countBy<T extends string>(findings: Finding[], key: (finding: Finding) => T): Map<T, number> {
+function countBy<T extends string>(findings: ReviewComment[], key: (finding: ReviewComment) => T): Map<T, number> {
   const counts = new Map<T, number>()
   for (const finding of findings) {
     counts.set(key(finding), (counts.get(key(finding)) ?? 0) + 1)
@@ -24,19 +18,19 @@ function countBy<T extends string>(findings: Finding[], key: (finding: Finding) 
 
 export interface FindingFiltersPanelProps {
   /** Every finding of the review: options and counts come from the unfiltered set. */
-  findings: Finding[]
+  findings: ReviewComment[]
   filters: FindingFilters
   onChange: (next: FindingFilters) => void
   shownCount: number
 }
 
 export function FindingFiltersPanel({ findings, filters, onChange, shownCount }: FindingFiltersPanelProps) {
-  const fileCounts = countBy(findings, (finding) => finding.path)
+  const fileCounts = countBy(findings, (finding) => finding.filePath)
   const severityCounts = countBy(findings, (finding) => finding.severity)
   const files = [...fileCounts.keys()].sort()
   const isFiltered = hasActiveFindingFilters(filters)
 
-  function toggleSeverity(severity: FindingSeverity) {
+  function toggleSeverity(severity: Severity) {
     const severities = filters.severities.includes(severity)
       ? filters.severities.filter((selected) => selected !== severity)
       : [...filters.severities, severity]
@@ -77,7 +71,7 @@ export function FindingFiltersPanel({ findings, filters, onChange, shownCount }:
       </label>
 
       <div role="group" aria-label="Критичность" className="flex flex-wrap items-center gap-1.5">
-        {FINDING_SEVERITIES.map((severity) => {
+        {SEVERITIES.map((severity) => {
           const selected = filters.severities.includes(severity)
           return (
             <button
@@ -87,12 +81,12 @@ export function FindingFiltersPanel({ findings, filters, onChange, shownCount }:
               onClick={() => toggleSeverity(severity)}
               className={cn(
                 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                severityBadgeClass[severity],
+                SEVERITY_TONE[severity],
                 filters.severities.length > 0 && !selected && 'opacity-40',
                 selected && 'ring-2 ring-ring',
               )}
             >
-              {severityLabel[severity]}
+              {SEVERITY_LABEL[severity]}
               <span className="tabular-nums">{severityCounts.get(severity) ?? 0}</span>
             </button>
           )
