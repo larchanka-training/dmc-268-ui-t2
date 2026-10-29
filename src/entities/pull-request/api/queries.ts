@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
 
+export const reviewQueryKey = (reviewId: string) => ['review', reviewId] as const
+export const reviewDiffQueryKey = (reviewId: string) => ['review', reviewId, 'diff'] as const
+export const reviewFindingsQueryKey = (reviewId: string) => ['review', reviewId, 'findings'] as const
+
 export function useReviewQuery(reviewId: string) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['review', reviewId],
+    queryKey: reviewQueryKey(reviewId),
     queryFn: () => dataSource.getReview(reviewId),
   })
 }
@@ -22,7 +26,7 @@ export function usePullRequestQuery(ref: { repositoryId: string; pullRequestNumb
 export function useDiffQuery(reviewId: string) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['review', reviewId, 'diff'],
+    queryKey: reviewDiffQueryKey(reviewId),
     queryFn: () => dataSource.getDiff(reviewId),
   })
 }
@@ -30,7 +34,7 @@ export function useDiffQuery(reviewId: string) {
 export function useReviewCommentsQuery(reviewId: string) {
   const dataSource = useDataSource()
   return useQuery({
-    queryKey: ['review', reviewId, 'findings'],
+    queryKey: reviewFindingsQueryKey(reviewId),
     queryFn: () => dataSource.getReviewComments(reviewId),
   })
 }

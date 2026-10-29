@@ -23,6 +23,7 @@ export function createFakeDataSource(overrides: Partial<PullRequestDataSource> =
       ensureKnown(id)
       return TEST_COMMENTS
     },
+    subscribeReview: () => () => {},
     ...overrides,
   }
 }

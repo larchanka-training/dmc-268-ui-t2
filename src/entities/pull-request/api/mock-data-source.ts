@@ -1,6 +1,7 @@
 import { parseDiff, type DiffFile } from '@/entities/diff'
 import { parseFinding, type ReviewComment } from '@/entities/review-comment'
 import { ReviewNotFoundError, type PullRequestDataSource } from '@/entities/pull-request/api/data-source'
+import type { ReviewStreamHandlers } from '@/entities/pull-request/api/review-stream'
 import { MOCK_PULL_REQUESTS, MOCK_REPOSITORY_ID, MOCK_REVIEWS } from '@/entities/pull-request/fixtures/reviews'
 import { parsePullRequest, parseReview, type PullRequest, type Review } from '@/entities/pull-request/model/types'
 
@@ -35,6 +36,12 @@ export class MockPullRequestDataSource implements PullRequestDataSource {
 
   async getReviewComments(reviewId: string): Promise<ReviewComment[]> {
     return (await this.find(reviewId)).findings.map(parseFinding)
+  }
+
+  /** У фикстур нет потока событий: сразу просим опрос, как при недоступном SSE. */
+  subscribeReview(_reviewId: string, handlers: ReviewStreamHandlers): () => void {
+    handlers.onFallback()
+    return () => {}
   }
 
   private delay() {
