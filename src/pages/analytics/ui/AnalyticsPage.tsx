@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QuotaPanel } from './QuotaPanel'
-import { useAnalytics, type Analytics } from '@/entities/repository-insights'
+import { InsightsHttpError, useAnalytics, useQuotas, type Analytics } from '@/entities/repository-insights'
 import { InsightsFilters, useInsightsSelection } from '@/widgets/insights-filters'
 
 const categories = [
@@ -144,6 +144,12 @@ function AnalyticsResults({ data }: { data: Analytics }) {
 export function AnalyticsPage() {
   const { repositoryId, days } = useInsightsSelection()
   const query = useAnalytics(repositoryId, days)
+  const quotas = useQuotas(query.isSuccess ? repositoryId : '')
+  const quotaAccessError =
+    quotas.error instanceof InsightsHttpError && (quotas.error.status === 403 || quotas.error.status === 404)
+      ? quotas.error
+      : null
+  const pageError = query.error ?? quotaAccessError
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Repository analytics</h1>
@@ -157,11 +163,11 @@ export function AnalyticsPage() {
           View audit log
         </Link>
       )}
-      {repositoryId && query.isSuccess && <QuotaPanel repositoryId={repositoryId} />}
+      {repositoryId && query.isSuccess && !pageError && <QuotaPanel query={quotas} />}
       {repositoryId && query.isPending && <p role="status">Loading analytics…</p>}
-      {query.isError ? (
+      {pageError ? (
         <p role="alert" className="text-destructive">
-          {query.error.message}
+          {pageError.message}
         </p>
       ) : (
         query.data && <AnalyticsResults data={query.data} />

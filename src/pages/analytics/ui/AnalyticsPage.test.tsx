@@ -382,3 +382,35 @@ test('repository access loss on period change hides the separately cached quota 
   expect(originalPeriodRequests).toBe(2)
   expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
 })
+
+test('quota access denial hides analytics that have already loaded for the same repository', async () => {
+  let denyQuotas!: (response: Response) => void
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/quotas'))
+        return new Promise<Response>((resolve) => {
+          denyQuotas = resolve
+        })
+      if (path.includes('/analytics'))
+        return Response.json({
+          ...emptyAnalytics,
+          average_duration_ms: 12500,
+          duration_sample_count: 1,
+          totals: { reviews: 1, findings: 0 },
+        })
+      return Response.json({ items: [repository('one')], next_cursor: null })
+    }),
+  )
+  renderWithRouter('/analytics?repository=one&days=30', {
+    routes: [{ path: '/analytics', element: <AnalyticsPage /> }],
+  })
+  await screen.findByText('12.5 s')
+  denyQuotas(new Response(null, { status: 404 }))
+  const error = await screen.findByRole('alert')
+  expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Repository limits' })).not.toBeInTheDocument()
+  expect(error).toHaveTextContent('This repository is unavailable or access was revoked.')
+  expect(screen.queryByRole('button', { name: 'Retry limits' })).not.toBeInTheDocument()
+})
