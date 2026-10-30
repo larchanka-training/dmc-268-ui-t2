@@ -1,8 +1,7 @@
 import { Button } from '@/shared/ui/button'
-import { useQuotas } from '@/entities/repository-insights'
+import type { useQuotas } from '@/entities/repository-insights'
 
-export function QuotaPanel({ repositoryId }: { repositoryId: string }) {
-  const query = useQuotas(repositoryId)
+export function QuotaPanel({ query }: { query: ReturnType<typeof useQuotas> }) {
   if (query.isError)
     return (
       <section className="space-y-2 rounded-lg border border-border p-4">
