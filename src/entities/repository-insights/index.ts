@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { meQueryKey, useMeQuery } from '@/entities/session'
 import { NonRetryableError } from '@/shared/lib/non-retryable-error'
@@ -26,6 +27,16 @@ export class InsightsHttpError extends NonRetryableError {
   }
 }
 
+function useDiscardDeniedRepositoryCache(error: Error | null, userId: string | undefined, repositoryId: string) {
+  const client = useQueryClient()
+  useEffect(() => {
+    if (error instanceof InsightsHttpError && (error.status === 403 || error.status === 404)) {
+      // Keep the active failed query visible; discard sibling views that could otherwise revive denied data.
+      client.removeQueries({ queryKey: ['repository-insights', userId, repositoryId], type: 'inactive' })
+    }
+  }, [client, error, userId, repositoryId])
+}
+
 export async function fetchAnalytics(repositoryId: string, days: number, signal?: AbortSignal): Promise<Analytics> {
   const response = await fetch(`/api/v1/repositories/${encodeURIComponent(repositoryId)}/analytics?days=${days}`, {
     credentials: 'include',
@@ -38,7 +49,7 @@ export async function fetchAnalytics(repositoryId: string, days: number, signal?
 export function useAnalytics(repositoryId: string, days: number) {
   const client = useQueryClient()
   const userId = useMeQuery().data?.user.id
-  return useQuery({
+  const query = useQuery({
     queryKey: ['repository-insights', userId, repositoryId, 'analytics', days],
     queryFn: async ({ signal }) => {
       try {
@@ -53,6 +64,8 @@ export function useAnalytics(repositoryId: string, days: number) {
     },
     enabled: Boolean(repositoryId && userId),
   })
+  useDiscardDeniedRepositoryCache(query.error, userId, repositoryId)
+  return query
 }
 
 export interface Quotas {
@@ -70,7 +83,7 @@ export interface Quotas {
 export function useQuotas(repositoryId: string) {
   const client = useQueryClient()
   const userId = useMeQuery().data?.user.id
-  return useQuery({
+  const query = useQuery({
     queryKey: ['repository-insights', userId, repositoryId, 'quotas'],
     queryFn: async ({ signal }): Promise<Quotas> => {
       const response = await fetch(`/api/v1/repositories/${encodeURIComponent(repositoryId)}/quotas`, {
@@ -83,6 +96,8 @@ export function useQuotas(repositoryId: string) {
     },
     enabled: Boolean(repositoryId && userId),
   })
+  useDiscardDeniedRepositoryCache(query.error, userId, repositoryId)
+  return query
 }
 
 export interface AuditReview {
@@ -114,7 +129,7 @@ export interface AuditPage {
 export function useAudit(repositoryId: string, days: number, status = '') {
   const client = useQueryClient()
   const userId = useMeQuery().data?.user.id
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey: ['repository-insights', userId, repositoryId, 'audit', days, status],
     initialPageParam: null as string | null,
     getNextPageParam: (page: AuditPage) => page.next_cursor ?? undefined,
@@ -132,4 +147,6 @@ export function useAudit(repositoryId: string, days: number, status = '') {
     },
     enabled: Boolean(repositoryId && userId),
   })
+  useDiscardDeniedRepositoryCache(query.error, userId, repositoryId)
+  return query
 }

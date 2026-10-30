@@ -157,7 +157,7 @@ export function AnalyticsPage() {
           View audit log
         </Link>
       )}
-      {repositoryId && <QuotaPanel repositoryId={repositoryId} />}
+      {repositoryId && query.isSuccess && <QuotaPanel repositoryId={repositoryId} />}
       {repositoryId && query.isPending && <p role="status">Loading analytics…</p>}
       {query.isError ? (
         <p role="alert" className="text-destructive">
