@@ -37,8 +37,8 @@ export function AppShell() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-48 shrink-0 flex-col gap-1 border-r border-border p-3">
+      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+        <aside className="flex shrink-0 gap-1 overflow-x-auto whitespace-nowrap border-b border-border p-3 sm:w-48 sm:flex-col sm:border-b-0 sm:border-r">
           <NavLink
             to="/repos"
             className={cn(
@@ -64,9 +64,35 @@ export function AppShell() {
           >
             Reviews/PRs
           </Link>
+          <NavLink
+            to="/analytics"
+            className={({ isActive }) =>
+              cn(
+                'rounded-md px-2 py-1.5 text-sm font-medium',
+                isActive
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+              )
+            }
+          >
+            Analytics
+          </NavLink>
+          <NavLink
+            to="/audit"
+            className={({ isActive }) =>
+              cn(
+                'rounded-md px-2 py-1.5 text-sm font-medium',
+                isActive
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+              )
+            }
+          >
+            Audit Log
+          </NavLink>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-auto p-6">
+        <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-6">
           <Outlet />
         </main>
       </div>
