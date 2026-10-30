@@ -4,6 +4,15 @@ import { AnalyticsPage } from '@/pages/analytics'
 import { renderWithRouter } from '@/test/render-with-router'
 
 afterEach(() => vi.unstubAllGlobals())
+
+const emptyAnalytics = {
+  period: { date_from: '2026-10-24', date_to: '2026-10-30', timezone: 'UTC' },
+  totals: { reviews: 0, findings: 0 },
+  findings_by_day: [],
+  average_duration_ms: null,
+  duration_sample_count: 0,
+}
+
 function stubFetch(handler: (input: RequestInfo | URL) => Promise<Response>) {
   vi.stubGlobal(
     'fetch',
@@ -150,7 +159,7 @@ test('exhausted actual start limits are actionable while daily token policy rema
           active_jobs: { limit: 2, used: 2, remaining: 0, scope: 'repository' },
           daily_tokens: { status: 'unavailable' },
         })
-      if (String(input).includes('/analytics')) return new Promise<Response>(() => {})
+      if (String(input).includes('/analytics')) return Response.json(emptyAnalytics)
       return Response.json({ items: [repository('one')], next_cursor: null })
     }),
   )
@@ -199,7 +208,7 @@ test('changing authenticated user never reuses cached analytics, audit or quota 
       if (path.includes('/repositories/one/')) {
         if (nextUser) {
           secondRequests.push(path)
-          return new Promise<Response>(() => {})
+          return path.includes('/analytics') ? Response.json(emptyAnalytics) : new Promise<Response>(() => {})
         }
         if (path.includes('/analytics'))
           return Response.json({
@@ -268,7 +277,7 @@ test('changing authenticated user never reuses cached analytics, audit or quota 
   await waitFor(() => expect(screen.queryByText('12.5 s')).not.toBeInTheDocument())
   expect(screen.queryByText('private-actor')).not.toBeInTheDocument()
   expect(screen.queryByText(/Hourly review start limit reached/)).not.toBeInTheDocument()
-  expect(secondRequests).toHaveLength(3)
+  await waitFor(() => expect(secondRequests).toHaveLength(3))
 })
 
 test('zero configured limits explain that review starts are disabled', async () => {
@@ -281,7 +290,7 @@ test('zero configured limits explain that review starts are disabled', async () 
           active_jobs: { used: 0, limit: 0, remaining: 0, scope: 'repository' },
           daily_tokens: { status: 'unavailable' },
         })
-      if (String(input).includes('/analytics')) return new Promise<Response>(() => {})
+      if (String(input).includes('/analytics')) return Response.json(emptyAnalytics)
       return Response.json({ items: [repository('one')], next_cursor: null })
     }),
   )
@@ -308,7 +317,7 @@ test('quota request failure remains visible and can be retried', async () => {
               daily_tokens: { status: 'unavailable' },
             })
       }
-      if (String(input).includes('/analytics')) return new Promise<Response>(() => {})
+      if (String(input).includes('/analytics')) return Response.json(emptyAnalytics)
       return Response.json({ items: [repository('one')], next_cursor: null })
     }),
   )
@@ -318,4 +327,58 @@ test('quota request failure remains visible and can be retried', async () => {
   expect(await screen.findByText('Could not load current limits.')).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Retry limits' }))
   expect(await screen.findByText('Your starts in this repository: 1 / 10 per hour · 9 remaining')).toBeInTheDocument()
+})
+
+test('repository access loss on period change hides the separately cached quota snapshot', async () => {
+  let quotaRequests = 0
+  let revoked = false
+  let originalPeriodRequests = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/quotas')) {
+        quotaRequests += 1
+        return Response.json({
+          starts_per_hour: {
+            used: 10,
+            limit: 10,
+            remaining: 0,
+            resets_at: '2026-10-30T13:00:00Z',
+            scope: 'repository_user',
+          },
+          active_jobs: { used: 2, limit: 2, remaining: 0, scope: 'repository' },
+          daily_tokens: { status: 'unavailable' },
+        })
+      }
+      if (path.includes('/analytics?days=30')) originalPeriodRequests += 1
+      if (path.includes('/analytics?days=90')) revoked = true
+      if (path.includes('/analytics') && revoked) return new Response(null, { status: 404 })
+      if (path.includes('/analytics'))
+        return Response.json({
+          period: { date_from: '2026-10-01', date_to: '2026-10-30', timezone: 'UTC' },
+          totals: { reviews: 1, findings: 0 },
+          findings_by_day: [],
+          average_duration_ms: 12500,
+          duration_sample_count: 1,
+        })
+      return Response.json({ items: [repository('one')], next_cursor: null })
+    }),
+  )
+  const { user } = renderWithRouter('/analytics?repository=one&days=30', {
+    routes: [{ path: '/analytics', element: <AnalyticsPage /> }],
+  })
+  await screen.findByText('12.5 s')
+  await screen.findByText('Your starts in this repository: 10 / 10 per hour · 0 remaining')
+  await user.selectOptions(screen.getByLabelText('Period'), '90')
+  await screen.findByText('This repository is unavailable or access was revoked.')
+  expect(quotaRequests).toBe(1)
+  expect(screen.queryByRole('region', { name: 'Repository limits' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Your starts in this repository/)).not.toBeInTheDocument()
+  expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('Period'), '30')
+  expect(screen.queryByText(/Your starts in this repository/)).not.toBeInTheDocument()
+  await screen.findByText('This repository is unavailable or access was revoked.')
+  expect(originalPeriodRequests).toBe(2)
+  expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
 })
