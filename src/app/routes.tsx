@@ -8,6 +8,8 @@ import { RouteError, RouteNotFound } from '@/pages/not-found'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
 import { PullRequestPage } from '@/pages/pull-request'
 import { ReposPage } from '@/pages/repos'
+import { AnalyticsPage } from '@/pages/analytics'
+import { AuditPage } from '@/pages/audit'
 
 /**
  * Декларация маршрутов (data router). Данные страница PR грузит сама через TanStack Query,
@@ -21,6 +23,8 @@ export const appRoutes: RouteObject[] = [
     element: <AuthenticatedShell />,
     children: [
       { path: '/repos', element: <ReposPage /> },
+      { path: '/analytics', element: <AnalyticsPage /> },
+      { path: '/audit', element: <AuditPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },
       { path: '/review', element: <Navigate to={`/reviews/${MOCK_DEFAULT_REVIEW_ID}`} replace /> },
       { path: '/reviews/:reviewId', element: <PullRequestPage />, errorElement: <RouteError /> },
