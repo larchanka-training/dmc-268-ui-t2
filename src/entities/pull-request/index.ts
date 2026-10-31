@@ -17,7 +17,11 @@ export {
 } from '@/entities/pull-request/model/paths'
 export { ReviewNotFoundError, type PullRequestDataSource } from '@/entities/pull-request/api/data-source'
 export { MockPullRequestDataSource } from '@/entities/pull-request/api/mock-data-source'
-export { ApiPullRequestDataSource, NotImplementedError } from '@/entities/pull-request/api/api-data-source'
+export {
+  ApiPullRequestDataSource,
+  NotImplementedError,
+  ReviewHttpError,
+} from '@/entities/pull-request/api/api-data-source'
 export { DataSourceProvider, useDataSource } from '@/entities/pull-request/api/data-source-context'
 export {
   useDiffQuery,
