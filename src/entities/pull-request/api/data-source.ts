@@ -1,4 +1,5 @@
 import type { DiffFile } from '@/entities/diff'
+import type { ReviewStreamHandlers } from '@/entities/pull-request/api/review-stream'
 import type { ReviewComment } from '@/entities/review-comment'
 import type { PullRequest, Review } from '@/entities/pull-request/model/types'
 import { NonRetryableError } from '@/shared/lib/non-retryable-error'
@@ -13,6 +14,8 @@ export interface PullRequestDataSource {
   getDiff(reviewId: string): Promise<DiffFile[] | null>
   /** Все страницы `GET /reviews/{id}/findings` */
   getReviewComments(reviewId: string): Promise<ReviewComment[]>
+  /** Живые снапшоты статуса (`GET /reviews/{id}/events/stream`); `onFallback` — поток недоступен, нужен опрос. Возвращает отписку. */
+  subscribeReview(reviewId: string, handlers: ReviewStreamHandlers): () => void
 }
 
 export class ReviewNotFoundError extends NonRetryableError {

@@ -15,6 +15,7 @@ import {
   type Review,
   type ReviewDetailWire,
 } from '@/entities/pull-request/model/types'
+import { openReviewStream, type ReviewStreamHandlers } from '@/entities/pull-request/api/review-stream'
 import { NonRetryableError } from '@/shared/lib/non-retryable-error'
 
 export class NotImplementedError extends NonRetryableError {
@@ -108,5 +109,9 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
       cursor = page.next_cursor
     } while (cursor !== null)
     return comments
+  }
+
+  subscribeReview(reviewId: string, handlers: ReviewStreamHandlers): () => void {
+    return openReviewStream(reviewId, handlers)
   }
 }

@@ -3,15 +3,25 @@ import { useLocation, useNavigate, useParams } from 'react-router'
 import type { DiffFile } from '@/entities/diff'
 import {
   ReviewNotFoundError,
+  isReviewSettled,
   useDiffQuery,
+  useLiveReview,
   usePullRequestQuery,
   useReviewCommentsQuery,
-  useReviewQuery,
 } from '@/entities/pull-request'
 import { countBySeverity, type Severity } from '@/entities/review-comment'
+import {
+  EMPTY_FINDING_FILTERS,
+  FindingFiltersPanel,
+  filterFindings,
+  hasActiveFindingFilters,
+  useFindingFilters,
+} from '@/features/filter-findings'
 import { useCommentCardStore } from '@/features/review-comment-card'
+import { Button } from '@/shared/ui/button'
 import { FileList } from '@/widgets/file-list'
 import { PullRequestHeader } from '@/widgets/pr-header'
+import { ReviewProgress } from '@/widgets/review-progress'
 import {
   DiffViewer,
   ViewModeToggle,
@@ -35,7 +45,7 @@ export function PullRequestPage() {
   const { search } = useLocation()
   const [viewMode, setViewMode] = useViewMode()
 
-  const reviewQuery = useReviewQuery(reviewId)
+  const { query: reviewQuery, transport } = useLiveReview(reviewId)
   const prQuery = usePullRequestQuery(reviewQuery.data)
   const diffQuery = useDiffQuery(reviewId)
   const commentsQuery = useReviewCommentsQuery(reviewId)
@@ -49,9 +59,17 @@ export function PullRequestPage() {
     [reviewId],
   )
 
-  const comments = commentsQuery.data ?? NO_COMMENTS
-  const files = diffQuery.data ?? NO_FILES
-  const anchored = useMemo(() => anchorComments(files, comments), [files, comments])
+  const [filters, setFilters] = useFindingFilters()
+  const isFiltered = hasActiveFindingFilters(filters)
+  const allComments = commentsQuery.data ?? NO_COMMENTS
+  const comments = useMemo(() => filterFindings(allComments, filters), [allComments, filters])
+  const allFiles = diffQuery.data ?? NO_FILES
+  const anchored = useMemo(() => anchorComments(allFiles, comments), [allFiles, comments])
+  // С фильтрами показываем только файлы, где остались замечания
+  const files = useMemo(
+    () => (isFiltered ? allFiles.filter((file) => commentCountForFile(file, anchored) > 0) : allFiles),
+    [allFiles, anchored, isFiltered],
+  )
   const counts = useMemo(() => countBySeverity(comments), [comments])
   const firstBySeverity = useMemo(() => firstCommentIdBySeverity(files, anchored), [files, anchored])
   const fileOfComment = useMemo(() => fileOfComments(files, anchored), [files, anchored])
@@ -62,7 +80,8 @@ export function PullRequestPage() {
   useHashTarget({ ready: isReady, fileOfComment })
 
   if (reviewQuery.error instanceof ReviewNotFoundError) return <ReviewNotFound reviewId={reviewId} />
-  if (queries.some((query) => query.isError)) return <PageError />
+  // Ошибка фонового обновления (опрос, смена статуса) не прячет уже загруженную страницу
+  if (queries.some((query) => query.isLoadingError)) return <PageError />
   if (!isReady || !reviewQuery.data) return <PageLoading />
 
   const selectSeverity = (severity: Severity) => {
@@ -72,16 +91,39 @@ export function PullRequestPage() {
     navigate({ search, hash: `#comment-${id}` }, { state })
   }
 
+  const review = reviewQuery.data
+  const analysisDone = review.status === 'COMPLETED' || review.status === 'PARTIAL'
+
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <PullRequestHeader
-        review={reviewQuery.data}
+        review={review}
         pullRequest={prQuery.data ?? null}
         counts={counts}
         onSelectSeverity={selectSeverity}
       />
 
-      {files.length === 0 ? (
+      <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
+
+      {allComments.length > 0 ? (
+        <FindingFiltersPanel
+          findings={allComments}
+          filters={filters}
+          onChange={setFilters}
+          shownCount={comments.length}
+        />
+      ) : (
+        analysisDone && <p className="text-sm text-muted-foreground">AI не нашёл замечаний.</p>
+      )}
+
+      {isFiltered && files.length === 0 && anchored.orphans.length === 0 && allFiles.length > 0 ? (
+        <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border px-4 py-6">
+          <p className="text-sm text-muted-foreground">Нет замечаний, подходящих под фильтры.</p>
+          <Button variant="outline" size="sm" onClick={() => setFilters(EMPTY_FINDING_FILTERS)}>
+            Сбросить фильтры
+          </Button>
+        </div>
+      ) : allFiles.length === 0 ? (
         <>
           {diffQuery.data === null ? <DiffPending /> : <EmptyDiff />}
           <DiffViewer files={[]} anchored={anchored} viewMode={viewMode} />
