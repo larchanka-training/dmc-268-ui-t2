@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useMeQuery } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
 import { reviewDiffQueryKey, reviewFindingsQueryKey, reviewQueryKey } from '@/entities/pull-request/api/queries'
 import {
@@ -16,17 +17,17 @@ function progressSignature(review: Review): string {
   return `${status}|${publicationStatus}|${progress.completedChunks}/${progress.plannedChunks}`
 }
 
-function applySnapshot(queryClient: QueryClient, reviewId: string, snapshot: ReviewSnapshot) {
-  const previous = queryClient.getQueryData<Review>(reviewQueryKey(reviewId))
+function applySnapshot(queryClient: QueryClient, reviewId: string, userId: string, snapshot: ReviewSnapshot) {
+  const previous = queryClient.getQueryData<Review>(reviewQueryKey(reviewId, userId))
   if (previous && (previous.status !== snapshot.status || previous.publicationStatus !== snapshot.publicationStatus)) {
-    queryClient.setQueryData<Review>(reviewQueryKey(reviewId), {
+    queryClient.setQueryData<Review>(reviewQueryKey(reviewId, userId), {
       ...previous,
       status: snapshot.status,
       publicationStatus: snapshot.publicationStatus,
     })
   }
   // Snapshots carry no chunk progress/summary; refetch detail for the rest.
-  void queryClient.invalidateQueries({ queryKey: reviewQueryKey(reviewId), exact: true })
+  void queryClient.invalidateQueries({ queryKey: reviewQueryKey(reviewId, userId), exact: true })
 }
 
 /**
@@ -38,13 +39,15 @@ function applySnapshot(queryClient: QueryClient, reviewId: string, snapshot: Rev
 export function useLiveReview(reviewId: string) {
   const dataSource = useDataSource()
   const queryClient = useQueryClient()
+  const userId = useMeQuery().data?.user.id
   const [fallbackFor, setFallbackFor] = useState<string | null>(null)
   const transport: ReviewTransport = fallbackFor === reviewId ? 'polling' : 'stream'
   const pollTracker = useRef(INITIAL_POLL_TRACKER)
 
   const query = useQuery({
-    queryKey: reviewQueryKey(reviewId),
+    queryKey: reviewQueryKey(reviewId, userId),
     queryFn: () => dataSource.getReview(reviewId),
+    enabled: Boolean(userId),
     refetchInterval: (current) => {
       const review = current.state.data
       if (!review) {
@@ -65,22 +68,22 @@ export function useLiveReview(reviewId: string) {
   const previousStatus = useRef(status)
   useEffect(() => {
     if (previousStatus.current !== undefined && status !== previousStatus.current) {
-      void queryClient.invalidateQueries({ queryKey: reviewDiffQueryKey(reviewId) })
-      void queryClient.invalidateQueries({ queryKey: reviewFindingsQueryKey(reviewId) })
+      void queryClient.invalidateQueries({ queryKey: reviewDiffQueryKey(reviewId, userId) })
+      void queryClient.invalidateQueries({ queryKey: reviewFindingsQueryKey(reviewId, userId) })
     }
     previousStatus.current = status
-  }, [status, reviewId, queryClient])
+  }, [status, reviewId, userId, queryClient])
 
   const streamWanted = query.data !== undefined && !isReviewSettled(query.data) && transport === 'stream'
   useEffect(() => {
-    if (!streamWanted) {
+    if (!streamWanted || !userId) {
       return
     }
     return dataSource.subscribeReview(reviewId, {
-      onSnapshot: (snapshot) => applySnapshot(queryClient, reviewId, snapshot),
+      onSnapshot: (snapshot) => applySnapshot(queryClient, reviewId, userId, snapshot),
       onFallback: () => setFallbackFor(reviewId),
     })
-  }, [streamWanted, reviewId, queryClient, dataSource])
+  }, [streamWanted, reviewId, userId, queryClient, dataSource])
 
   return { query, transport }
 }
