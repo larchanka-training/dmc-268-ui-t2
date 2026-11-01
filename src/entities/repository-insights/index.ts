@@ -31,8 +31,22 @@ function useDiscardDeniedRepositoryCache(error: Error | null, userId: string | u
   const client = useQueryClient()
   useEffect(() => {
     if (error instanceof InsightsHttpError && (error.status === 403 || error.status === 404)) {
-      // Keep the active failed query visible; discard sibling views that could otherwise revive denied data.
-      client.removeQueries({ queryKey: ['repository-insights', userId, repositoryId], type: 'inactive' })
+      const scope = { queryKey: ['repository-insights', userId, repositoryId] }
+      client.removeQueries({ ...scope, type: 'inactive' })
+      const siblings = client.getQueryCache().findAll(scope)
+      // Retain active observers and their denial guard, without refetching or accepting late sibling responses.
+      void client.cancelQueries(scope, { revert: false }).then(() => {
+        for (const sibling of siblings) {
+          sibling.setState({
+            data: undefined,
+            dataUpdatedAt: 0,
+            error,
+            errorUpdatedAt: Date.now(),
+            status: 'error',
+            fetchStatus: 'idle',
+          })
+        }
+      })
     }
   }, [client, error, userId, repositoryId])
 }

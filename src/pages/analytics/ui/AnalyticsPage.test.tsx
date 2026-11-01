@@ -414,3 +414,65 @@ test('quota access denial hides analytics that have already loaded for the same 
   expect(error).toHaveTextContent('This repository is unavailable or access was revoked.')
   expect(screen.queryByRole('button', { name: 'Retry limits' })).not.toBeInTheDocument()
 })
+
+test('quota denial discards active sibling insights and late responses before leaving and returning', async () => {
+  const { AuditPage } = await import('@/pages/audit')
+  let denyQuotas!: (response: Response) => void
+  let finishAudit!: (response: Response) => void
+  let returning = false
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes('/repositories/one/')) {
+        if (returning) return new Promise<Response>(() => {})
+        if (path.endsWith('/quotas'))
+          return new Promise<Response>((resolve) => {
+            denyQuotas = resolve
+          })
+        if (path.includes('/reviews?'))
+          return new Promise<Response>((resolve) => {
+            finishAudit = resolve
+          })
+        if (path.includes('/analytics'))
+          return Response.json({ ...emptyAnalytics, average_duration_ms: 12500, duration_sample_count: 1 })
+      }
+      return Response.json({ items: [repository('one')], next_cursor: null })
+    }),
+  )
+  const { router } = renderWithRouter('/insights?repository=one', {
+    routes: [
+      {
+        path: '/insights',
+        element: (
+          <>
+            <AnalyticsPage />
+            <AuditPage />
+          </>
+        ),
+      },
+      { path: '/away', element: <p>Another page</p> },
+    ],
+  })
+  await screen.findByText('12.5 s')
+  await act(async () => {
+    denyQuotas(new Response(null, { status: 404 }))
+  })
+  await screen.findAllByText('This repository is unavailable or access was revoked.')
+  await act(async () => {
+    finishAudit(Response.json({ items: [], next_cursor: null }))
+  })
+  await waitFor(() => expect(screen.queryByText('No review runs match these filters.')).not.toBeInTheDocument())
+  expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
+  await act(async () => {
+    await router.navigate('/away')
+  })
+  returning = true
+  await act(async () => {
+    await router.navigate('/insights?repository=one')
+  })
+  expect(await screen.findByText('Loading analytics…')).toBeInTheDocument()
+  expect(screen.getByText('Loading review audit…')).toBeInTheDocument()
+  expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
+  expect(screen.queryByText('No review runs match these filters.')).not.toBeInTheDocument()
+})

@@ -1,6 +1,6 @@
 # Repository analytics and review audit (#31)
 
-The authenticated `/analytics` and `/audit` pages use the repository insights API. The URL retains `repository=<opaque ID>` and `days=7|30|90`; audit additionally retains the analysis `status`. Changing any filter starts a separate query. Audit loads cursor pages on demand. Query caches are isolated by authenticated user, repository and filters. HTTP 401 rechecks the session; access errors hide previously loaded results.
+The authenticated `/analytics` and `/audit` pages use the repository insights API. The URL retains `repository=<opaque ID>` and `days=7|30|90`; audit additionally retains the analysis `status`. Changing any filter starts a separate query. Audit loads cursor pages on demand. Query caches are isolated by authenticated user, repository and filters. HTTP 401 rechecks the session. Repository access denial (403/404) discards inactive sibling caches, cancels pending sibling reads and clears active analytics/audit/quota data while retaining the denial state. Returning to the page revalidates access without restoring old results or accepting late responses.
 
 ## Data meaning
 
@@ -23,7 +23,7 @@ The canonical schemas and authorization checks are in API `openapi.yaml`:
 - `GET /api/v1/repositories/{id}/reviews?days=30&limit=20&status=PARTIAL&cursor=...`
 - `GET /api/v1/repositories/{id}/quotas`
 
-All requests use same-origin cookies. These pages do not trigger reviews, spend tokens or mutate limits. Review links use the existing `/reviews/:reviewId` route. This branch is stacked on UI PR #37 to reuse its HTTP review client; it does not duplicate that client or include the separate SSE work in PR #27. Review, PR metadata, diff and findings caches are also scoped to the authenticated user.
+All requests use same-origin cookies. These pages do not trigger reviews, spend tokens or mutate limits. Review links use the existing `/reviews/:reviewId` route. The HTTP review client and user-scoped caches from merged PR #37 are inherited from main, along with live progress and finding filters from merged PR #27. Review, PR metadata, diff and findings caches, including live snapshot updates, are scoped to the authenticated user.
 
 ## Local demo and verification
 
