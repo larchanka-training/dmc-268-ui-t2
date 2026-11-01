@@ -46,7 +46,7 @@ export function AuditPage() {
         <p>No review runs match these filters.</p>
       )}
       {query.isError && (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           {query.error.message}
         </p>
       )}
@@ -94,7 +94,7 @@ export function AuditPage() {
                         Publication: {review.publication_status}
                       </p>
                       {review.limit_reasons.length > 0 && (
-                        <p role="alert" className="mt-2 min-w-48 text-amber-700">
+                        <p role="alert" className="mt-2 min-w-48 text-warning-foreground">
                           Analysis limited: {review.limit_reasons.map((reason) => limitLabels[reason]).join(', ')}. Some
                           changes were not analyzed.
                         </p>
@@ -106,7 +106,9 @@ export function AuditPage() {
                         output
                       </p>
                       {review.usage.status === 'unavailable' && <p>Usage unavailable</p>}
-                      {review.usage.status === 'incomplete' && <p className="text-amber-700">Incomplete usage</p>}
+                      {review.usage.status === 'incomplete' && (
+                        <p className="text-warning-foreground">Incomplete usage</p>
+                      )}
                       <p className="whitespace-nowrap text-xs text-muted-foreground">
                         Reserved: {review.usage.reserved_input_tokens} input / {review.usage.reserved_output_tokens}{' '}
                         output

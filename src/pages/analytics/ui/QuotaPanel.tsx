@@ -18,7 +18,7 @@ export function QuotaPanel({ query }: { query: ReturnType<typeof useQuotas> }) {
     <section className="space-y-3 rounded-lg border border-border p-4" aria-label="Repository limits">
       <h2 className="font-semibold">Current limits</h2>
       {disabled && (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           Review starts are disabled by repository limits. Contact a repository administrator.
         </p>
       )}
@@ -26,7 +26,7 @@ export function QuotaPanel({ query }: { query: ReturnType<typeof useQuotas> }) {
         Your starts in this repository: {starts.used} / {starts.limit} per hour · {starts.remaining} remaining
       </p>
       {!disabled && starts.remaining === 0 && (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           Hourly review start limit reached. Wait until{' '}
           <time>
             {starts.resets_at
@@ -40,7 +40,7 @@ export function QuotaPanel({ query }: { query: ReturnType<typeof useQuotas> }) {
         Repository active reviews: {active.used} / {active.limit} · {active.remaining} remaining
       </p>
       {!disabled && active.remaining === 0 && (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           Repository active review limit reached. Wait for an active review to finish.
         </p>
       )}

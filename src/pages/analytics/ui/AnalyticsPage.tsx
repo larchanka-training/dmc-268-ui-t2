@@ -166,7 +166,7 @@ export function AnalyticsPage() {
       {repositoryId && query.isSuccess && !pageError && <QuotaPanel query={quotas} />}
       {repositoryId && query.isPending && <p role="status">Loading analytics…</p>}
       {pageError ? (
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           {pageError.message}
         </p>
       ) : (

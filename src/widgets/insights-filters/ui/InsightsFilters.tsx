@@ -10,7 +10,7 @@ export function InsightsFilters() {
   if (repositories.isError)
     return (
       <div className="space-y-2">
-        <p role="alert" className="text-destructive">
+        <p role="alert" className="text-error-foreground">
           Could not load repositories.
         </p>
         <Button variant="outline" onClick={() => void repositories.refetch()}>
