@@ -7,10 +7,15 @@ import {
   ME_PATH,
 } from '@/entities/session'
 import {
+  MOCK_DEFAULT_REVIEW_ID,
+  MOCK_FETCHING_REVIEW_ID,
   MOCK_PULL_REQUESTS,
   MOCK_REPOSITORY_ID,
   MOCK_REVIEWS,
+  MOCK_SKIPPED_REVIEW_ID,
+  REPOSITORY_PULL_REQUEST_REVIEWS_ROUTE,
   REPOSITORY_PULL_REQUESTS_ROUTE,
+  type PullRequestWire,
   REVIEW_DIFF_ROUTE,
   REVIEW_FINDINGS_ROUTE,
   REVIEW_ROUTE,
@@ -28,6 +33,7 @@ import {
 } from '@/app/msw/session-cookie'
 import {
   connectRepositoryInStore,
+  isConnectedRepositoryId,
   listAvailableRepositoryPage,
   listConnectedRepositoryPage,
 } from '@/app/msw/repos-store'
@@ -149,19 +155,67 @@ export const reposHandlers = [
       return new HttpResponse(null, { status: 422 })
     }
     const result = connectRepositoryInStore(body.provider, body.external_id)
-    if (result.status === 'not_found') {
-      return new HttpResponse(null, { status: 422 })
+    switch (result.status) {
+      case 'not_found':
+        return new HttpResponse(null, { status: 422 })
+      case 'bot_access_required':
+        return apiError(409, 'BOT_ACCESS_REQUIRED', 'Invite the review bot to this repository, then check again.', {
+          bot_login: result.botLogin,
+          access_url: result.accessUrl,
+        })
+      case 'service_unavailable':
+        return apiError(503, 'SERVICE_UNAVAILABLE', 'The review service is temporarily unavailable.', {
+          retryable: true,
+        })
+      default:
+        return HttpResponse.json(result.repository, { status: result.status === 'created' ? 201 : 200 })
     }
-    return HttpResponse.json(result.repository, { status: result.status === 'created' ? 201 : 200 })
   }),
 ]
 
-/** OpenAPI `Error` envelope. */
-function apiError(status: number, code: string, message: string) {
-  return HttpResponse.json({ code, message, request_id: 'req_msw', retryable: false, retry_after: null }, { status })
+/** OpenAPI `Error` envelope; `extras` adds fields such as `bot_login` / `access_url` or `retryable`. */
+function apiError(
+  status: number,
+  code: string,
+  message: string,
+  extras: { retryable?: boolean; bot_login?: string; access_url?: string } = {},
+) {
+  const { retryable = false, ...rest } = extras
+  return HttpResponse.json({ code, message, request_id: 'req_msw', retryable, retry_after: null, ...rest }, { status })
 }
 
 const notFound = () => apiError(404, 'RESOURCE_NOT_FOUND', 'Resource was not found.')
+
+/** Reserved demo PR: Start always answers `INTEGRATION_UNHEALTHY`. MSW-only overlay, not a shared fixture. */
+const UNHEALTHY_PULL_REQUEST_NUMBER = 999
+const MSW_PULL_REQUESTS: PullRequestWire[] = [
+  ...MOCK_PULL_REQUESTS,
+  {
+    ...MOCK_PULL_REQUESTS[0],
+    number: UNHEALTHY_PULL_REQUEST_NUMBER,
+    title: 'Demo: integration unhealthy on Start',
+    state: 'OPEN',
+  },
+]
+
+/** PR number → fixture review opened after Start. Fixtures keep `repository_id: connected-1001`. */
+const REVIEW_ID_BY_PULL_REQUEST: Record<number, string> = {
+  42: MOCK_DEFAULT_REVIEW_ID,
+  43: MOCK_SKIPPED_REVIEW_ID,
+  44: MOCK_FETCHING_REVIEW_ID,
+}
+
+/** `MOCK_REPOSITORY_ID` stays valid even when only another repo is connected (review detail re-lists PRs by it). */
+const isKnownRepositoryId = (repositoryId: string) =>
+  repositoryId === MOCK_REPOSITORY_ID || isConnectedRepositoryId(repositoryId)
+
+/** Keyed by repository id + PR number + Idempotency-Key. Same head sha → 200 replay; different → 409. Resets on reload. */
+const startReviewByKey = new Map<string, { headSha: string }>()
+
+/** Test/dev helper — clears the Start idempotency map. */
+export function resetMswStartReviewState(): void {
+  startReviewByKey.clear()
+}
 
 /**
  * Stubbed reviews seams (wire fixtures из `entities/pull-request`, без пагинации):
@@ -191,7 +245,38 @@ export const reviewHandlers = [
 
   http.get(REPOSITORY_PULL_REQUESTS_ROUTE, ({ cookies, params }) => {
     if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
-    if (params.id !== MOCK_REPOSITORY_ID) return notFound()
-    return HttpResponse.json({ items: MOCK_PULL_REQUESTS, next_cursor: null })
+    if (!isKnownRepositoryId(String(params.id))) return notFound()
+    return HttpResponse.json({ items: MSW_PULL_REQUESTS, next_cursor: null })
+  }),
+
+  http.post(REPOSITORY_PULL_REQUEST_REVIEWS_ROUTE, async ({ cookies, params, request }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    if (!requireCsrf(request)) return new HttpResponse(null, { status: 403 })
+    const idempotencyKey = request.headers.get('Idempotency-Key')
+    const body = (await request.json().catch(() => null)) as { requested_head_sha?: unknown } | null
+    const headSha = body?.requested_head_sha
+    if (!idempotencyKey || typeof headSha !== 'string' || headSha === '') {
+      return apiError(422, 'VALIDATION_FAILED', 'Idempotency-Key and requested_head_sha are required.')
+    }
+    if (!isKnownRepositoryId(String(params.id))) return notFound()
+    const number = Number(params.number)
+    if (!MSW_PULL_REQUESTS.some((pr) => pr.number === number)) return notFound()
+    if (number === UNHEALTHY_PULL_REQUEST_NUMBER) {
+      return apiError(409, 'INTEGRATION_UNHEALTHY', 'The GitHub integration is unhealthy. Try again later.')
+    }
+    const reviewId = REVIEW_ID_BY_PULL_REQUEST[number]
+    if (!reviewId) return notFound()
+
+    const replayKey = `${String(params.id)}|${number}|${idempotencyKey}`
+    const replay = startReviewByKey.get(replayKey)
+    if (replay && replay.headSha !== headSha) {
+      return apiError(409, 'IDEMPOTENCY_CONFLICT', 'This Idempotency-Key was used with a different request.')
+    }
+    startReviewByKey.set(replayKey, { headSha })
+    const resourceUrl = `/api/v1/reviews/${reviewId}`
+    return HttpResponse.json(
+      { review_id: reviewId, status: 'QUEUED', resource_url: resourceUrl },
+      { status: replay ? 200 : 202, headers: { Location: resourceUrl } },
+    )
   }),
 ]

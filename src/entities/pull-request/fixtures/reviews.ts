@@ -18,8 +18,8 @@ export const MOCK_REPOSITORY_ID = 'connected-1001'
 const REPOSITORY_EXTERNAL_ID = '1001'
 
 export const MOCK_DEFAULT_REVIEW_ID = '9b2f4c1e-3a7d-4e8b-b6c5-1d0f2a9e8c42'
-const SKIPPED_REVIEW_ID = '5e8a1d3c-7b2f-4c9e-a1d4-6f3b8e2c0a43'
-const PENDING_REVIEW_ID = 'c4d7e2a9-1f6b-4a3e-9d8c-2b5e7f1a0c44'
+export const MOCK_SKIPPED_REVIEW_ID = '5e8a1d3c-7b2f-4c9e-a1d4-6f3b8e2c0a43'
+export const MOCK_FETCHING_REVIEW_ID = 'c4d7e2a9-1f6b-4a3e-9d8c-2b5e7f1a0c44'
 
 const ref = (name: string, sha: string) => ({ repository_external_id: REPOSITORY_EXTERNAL_ID, ref: name, sha })
 
@@ -697,9 +697,9 @@ export const MOCK_REVIEWS: Record<string, ReviewFixture> = {
     diff: DIFF_42,
     findings: FINDINGS_42,
   },
-  [SKIPPED_REVIEW_ID]: {
+  [MOCK_SKIPPED_REVIEW_ID]: {
     review: reviewDetail({
-      id: SKIPPED_REVIEW_ID,
+      id: MOCK_SKIPPED_REVIEW_ID,
       pull_request_number: 43,
       status: 'SKIPPED',
       publication_status: 'SKIPPED',
@@ -710,9 +710,9 @@ export const MOCK_REVIEWS: Record<string, ReviewFixture> = {
     diff: { files: [] },
     findings: [],
   },
-  [PENDING_REVIEW_ID]: {
+  [MOCK_FETCHING_REVIEW_ID]: {
     review: reviewDetail({
-      id: PENDING_REVIEW_ID,
+      id: MOCK_FETCHING_REVIEW_ID,
       pull_request_number: 44,
       status: 'FETCHING_DIFF',
       snapshot: null,

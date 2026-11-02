@@ -51,9 +51,14 @@ export function ReposPage() {
                   {repo.role}
                 </Badge>
               </div>
-              <Badge variant="secondary" className="capitalize">
-                {repo.provider}
-              </Badge>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="secondary" className="capitalize">
+                  {repo.provider}
+                </Badge>
+                <Button asChild size="sm" variant="outline">
+                  <Link to={`/repos/${encodeURIComponent(repo.id)}/pull-requests`}>Pull requests</Link>
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

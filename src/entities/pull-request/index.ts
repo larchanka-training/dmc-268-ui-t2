@@ -10,6 +10,7 @@ export type {
 } from '@/entities/pull-request/model/types'
 export { parsePullRequest, parseReview } from '@/entities/pull-request/model/types'
 export {
+  REPOSITORY_PULL_REQUEST_REVIEWS_ROUTE,
   REPOSITORY_PULL_REQUESTS_ROUTE,
   REVIEW_DIFF_ROUTE,
   REVIEW_FINDINGS_ROUTE,
@@ -24,8 +25,16 @@ export {
 } from '@/entities/pull-request/api/api-data-source'
 export { DataSourceProvider, useDataSource } from '@/entities/pull-request/api/data-source-context'
 export {
+  fetchRepositoryPullRequests,
+  PullRequestHttpError,
+  startReview,
+  type StartReviewInput,
+} from '@/entities/pull-request/api/pull-request-client'
+export {
   useDiffQuery,
   usePullRequestQuery,
+  useRepositoryPullRequestsQuery,
+  useStartReviewMutation,
   useReviewCommentsQuery,
   useReviewQuery,
 } from '@/entities/pull-request/api/queries'
@@ -33,7 +42,9 @@ export {
   MOCK_DEFAULT_REVIEW_ID,
   MOCK_PULL_REQUESTS,
   MOCK_REPOSITORY_ID,
+  MOCK_FETCHING_REVIEW_ID,
   MOCK_REVIEWS,
+  MOCK_SKIPPED_REVIEW_ID,
   type ReviewFixture,
 } from '@/entities/pull-request/fixtures/reviews'
 export {
