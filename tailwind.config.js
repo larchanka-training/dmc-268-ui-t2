@@ -22,6 +22,12 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
+        error: {
+          foreground: 'hsl(var(--error-foreground))',
+        },
+        warning: {
+          foreground: 'hsl(var(--warning-foreground))',
+        },
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
