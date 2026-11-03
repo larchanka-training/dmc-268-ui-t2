@@ -24,6 +24,8 @@ This revision incorporates the contract foundation accepted in [API PR #21](http
 
 Those contracts take precedence in their respective areas; do not fork their schemas or infer runtime readiness from their existence. [Sprint 2 handoff](https://github.com/larchanka-training/dmc-268-api-t2/blob/main/docs/sprint2-contract-handoff.md) identifies consumer adaptations and task boundaries.
 
+Sprint 4 Tech Lead policy for incremental re-review, technical quotas/limits, cost display boundaries, and incremental security rules: [INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md](./INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md) (English SoT; Russian copy after acceptance). It does not replace API pipeline or OpenAPI contracts.
+
 ## 2. Goals, requirements, and scope
 
 The system obtains PR/MR changes from a VCS, builds relevant context, uses an LLM to analyze security, correctness, performance, and maintainability, validates the response, and produces a summary and diff-linked findings. Context has four levels: Diff, Surrounding Context, Whole File, and AST / Imports. Cost/context limits, retries, caching, and clear status are required.
@@ -35,7 +37,7 @@ The team board proposes a GitHub bot and reviewer-assignment trigger, access/quo
 | Included | Excluded without a separate decision |
 |---|---|
 | GitHub PRs; adapter contract can support GitLab | Both VCS implementations at once |
-| Manual start from the UI. Optional per-repository automatic start on pull-request open or update, default off | GitHub App installation, starting every push without that setting, requesting the bot as a GitHub reviewer |
+| Manual start from the UI. Optional per-repository automatic start on pull-request open or update, default off. Narrow post-finish follow-up when the live head is already newer ([INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md](./INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md) §3.2.1) | GitHub App installation, starting every push without that setting, requesting the bot as a GitHub reviewer |
 | Access and technical quota checks | Payments, billing, token purchases |
 | PR summary/inline findings; runs, diff, results in UI | Full GitLab-like UI and agent chat |
 | Python and TypeScript/TSX AST context | Full-repository indexing, external RAG, every language |
@@ -89,7 +91,7 @@ flowchart TD
 | Dispatcher/recovery | Outbox delivery, delayed retry, stale-task recovery, TTL cleanup | Code analysis |
 | Background workers | Analyze orchestration and separate publication; framework selected by API #13 | Queue as source of state |
 | PostgreSQL | Runs, results, settings/access, outbox, leases, quotas, saved context | Permanent source retention |
-| Redis | Small acknowledged task envelopes, rate limiting, hot TTL context/blob cache | Authoritative jobs/results/quotas/idempotency/leases; full diff, prompt, result in queue |
+| Redis | Small acknowledged task envelopes, hot TTL context/blob cache; HTTP entry rate limiting is design intent only on current API main (not implemented — see [INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md](./INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md) §5.2) | Authoritative jobs/results/quotas/idempotency/leases; full diff, prompt, result in queue |
 | Ollama | Inference | VCS, DB, or secret access |
 
 All backend processes share one project/image and domain model; they are not microservices. PostgreSQL outbox/job/lease state is authoritative. Redis enqueue acknowledgement is not job completion and Redis contains no irreplaceable domain state; queue degradation blocks dispatch, not stored-result reads.
@@ -175,7 +177,7 @@ stateDiagram-v2
     UNKNOWN --> FAILED: absence confirmed
 ```
 
-`UNKNOWN` stops automatic retries until operator reconciliation. Transitions, reasons, and fencing tokens are recorded. Duplicate delivery continues the same run; explicit rerun creates a new run with `rerun_of`. A push starts a review only when that repository's automatic-start setting is on. The default is off.
+`UNKNOWN` stops automatic retries until operator reconciliation. Transitions, reasons, and fencing tokens are recorded. Duplicate delivery continues the same run; explicit rerun creates a new run with `rerun_of`. A push starts a review only when that repository's automatic-start setting is on. The default is off. Separately, after an analysis job finishes, a **narrow system follow-up** may admit one new job when the live PR head is already newer — see [INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md](./INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md) §3.2.1. That path is not global auto-start on every synchronize, and webhook intake still does not create jobs by itself.
 
 ## 5. VCS integration and immutable snapshot
 
@@ -299,7 +301,7 @@ The Redis queue adapter receives only this canonical JSON envelope, validated ag
 
 Dispatcher locks outbox rows and marks `broker_published_at` only after Redis confirms enqueue. Duplicates are expected and guarded by lifecycle/lease. Recovery recreates eligible delivery when no live lease/progress exists, including message loss after enqueue; PostgreSQL remains authoritative. Application/dispatcher exclusively owns retry; no independent framework autoretry. Recovery runs every 30 seconds, never retries before `retry_at`, but terminally closes expired jobs. Retry requires expired/no lease, reached retry time, remaining deadline/budget. Heartbeat 15 seconds, lease 90 seconds. Every persistence write verifies the current lease/fencing token. External calls happen outside open PostgreSQL transactions. Lost-lease workers cannot save or start external writes.
 
-At most three generic transient attempts per active phase use backoff/jitter/Retry-After. Only `VCS_RATE_LIMITED`, `VCS_UNAVAILABLE`, `LLM_TIMEOUT`, and `LLM_UNAVAILABLE` use generic retry; format repair is separate. Provider retry/failover and worker retry share the analysis deadline and request budget, without multiplying attempts. The whole deployment has one inference through one analyze worker. Horizontal scaling first requires a PostgreSQL lease/semaphore. PostgreSQL reserves durable quotas/active work; Redis carries tasks and protects entry rates.
+At most three generic transient attempts per active phase use backoff/jitter/Retry-After. Only `VCS_RATE_LIMITED`, `VCS_UNAVAILABLE`, `LLM_TIMEOUT`, and `LLM_UNAVAILABLE` use generic retry; format repair is separate. Provider retry/failover and worker retry share the analysis deadline and request budget, without multiplying attempts. The whole deployment has one inference through one analyze worker. Horizontal scaling first requires a PostgreSQL lease/semaphore. PostgreSQL reserves durable quotas/active work; Redis carries tasks. Protecting HTTP entry rates via Redis counters remains aspirational on API main (quotas today are PostgreSQL); normative Sprint 4 limit policy is [INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md](./INCREMENTAL_REVIEW_AND_LIMITS_SPEC.md) §5.
 
 Dead-letter metadata follows `schemas/queue/dead/v1.json` and never copies raw messages, unknown fields, exceptions, source, prompts, or provider responses. A record without a valid `source_event_id` is diagnostic-only. Operator replay resolves the authoritative PostgreSQL `OutboxEvent`, checks schema/lifecycle/deadlines/lease and equivalent pending work, then creates a new event with a new ID and incremented attempt. Raw dead messages are never replayed; unsupported dead-schema versions are not recursively quarantined. Full error-code/replay rules remain in `PIPELINE_SPEC.md`.
 
