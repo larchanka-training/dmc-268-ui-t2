@@ -16,7 +16,9 @@ function pullRequestWire(number: number, title: string) {
   }
 }
 
-function stubApi(startResponse?: () => Response) {
+type StartResponse = () => Response | Promise<Response>
+
+function stubApi(startResponse?: StartResponse | StartResponse[]) {
   const calls: Array<{ url: string; init: RequestInit }> = []
   vi.stubGlobal(
     'fetch',
@@ -24,7 +26,8 @@ function stubApi(startResponse?: () => Response) {
       const url = String(input)
       calls.push({ url, init: init ?? {} })
       if (url.includes('/pull-requests/') && url.endsWith('/reviews') && startResponse) {
-        return startResponse()
+        const next = Array.isArray(startResponse) ? startResponse.shift() : startResponse
+        if (next) return next()
       }
       if (url.includes('/repositories/repo-1/pull-requests')) {
         return Response.json({
@@ -111,4 +114,55 @@ test('other start failures keep a generic message, not the integration one', asy
   await user.click(within(row).getByRole('button', { name: 'Start review' }))
 
   expect(await within(row).findByRole('alert')).toHaveTextContent('Could not start review. Try again.')
+})
+
+function startCalls(calls: Array<{ url: string; init: RequestInit }>) {
+  return calls.filter((c) => c.init.method === 'POST' && c.url.endsWith('/pull-requests/42/reviews'))
+}
+
+function idempotencyKey(call: { init: RequestInit }) {
+  return (call.init.headers as Record<string, string>)['Idempotency-Key']
+}
+
+test.each([
+  [
+    'a lost response',
+    () => {
+      throw new TypeError('network')
+    },
+  ],
+  ['a 5xx response', () => new Response(null, { status: 503 })],
+])('retry after %s reuses the Idempotency-Key', async (_label, first) => {
+  const calls = stubApi([first, accepted])
+  const { user, router } = renderPage()
+
+  const row = (await screen.findByText('Add user metadata')).closest('li') as HTMLElement
+  await user.click(within(row).getByRole('button', { name: 'Start review' }))
+  expect(await within(row).findByRole('alert')).toBeInTheDocument()
+  await user.click(within(row).getByRole('button', { name: 'Start review' }))
+
+  expect(await screen.findByText('Review detail')).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/reviews/rev-77')
+  const starts = startCalls(calls)
+  expect(starts).toHaveLength(2)
+  expect(idempotencyKey(starts[0])).toMatch(/\S+/)
+  expect(idempotencyKey(starts[1])).toBe(idempotencyKey(starts[0]))
+})
+
+test('definitive 4xx gets a fresh key next time', async () => {
+  const calls = stubApi([
+    () => Response.json({ code: 'REVIEW_ALREADY_ACTIVE', message: 'x' }, { status: 409 }),
+    accepted,
+  ])
+  const { user } = renderPage()
+
+  const row = (await screen.findByText('Add user metadata')).closest('li') as HTMLElement
+  await user.click(within(row).getByRole('button', { name: 'Start review' }))
+  expect(await within(row).findByRole('alert')).toBeInTheDocument()
+  await user.click(within(row).getByRole('button', { name: 'Start review' }))
+
+  expect(await screen.findByText('Review detail')).toBeInTheDocument()
+  const starts = startCalls(calls)
+  expect(starts).toHaveLength(2)
+  expect(idempotencyKey(starts[1])).not.toBe(idempotencyKey(starts[0]))
 })

@@ -92,7 +92,7 @@ export function connectRepositoryInStore(provider: string, externalId: string): 
       }
     }
   }
-  const connected = toConnectedWire(seed)
+  const connected = toConnectedWire(seed, 'admin')
   connectedByExternalId.set(externalId, connected)
   return { status: 'created', repository: connected }
 }

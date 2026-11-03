@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { PullRequestHttpError, useStartReviewMutation, type PullRequest } from '@/entities/pull-request'
 import { Button } from '@/shared/ui/button'
 
@@ -35,9 +35,17 @@ export function StartReviewButton({ repositoryId, pullRequest }: StartReviewButt
       </Button>
       {startMutation.isError ? (
         <p className="text-xs text-destructive" role="alert">
-          {isIntegrationUnhealthy(startMutation.error)
-            ? 'This repository integration is unhealthy, so new reviews are blocked. Ask an admin to check the bot access, then try again.'
-            : 'Could not start review. Try again.'}
+          {isIntegrationUnhealthy(startMutation.error) ? (
+            <>
+              This repository integration is unhealthy, so new reviews are blocked. An admin can use Check access on the{' '}
+              <Link to="/repos" className="underline underline-offset-2">
+                Repositories
+              </Link>{' '}
+              page, then try again.
+            </>
+          ) : (
+            'Could not start review. Try again.'
+          )}
         </p>
       ) : null}
     </div>

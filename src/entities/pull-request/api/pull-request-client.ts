@@ -63,15 +63,18 @@ export interface StartReviewInput {
   headSha: string
 }
 
-/** OpenAPI `startReview`: 202 new run, 200 same-key replay. Returns the review id. */
-export async function startReview(input: StartReviewInput, csrfToken: string): Promise<string> {
+/**
+ * OpenAPI `startReview`: 202 new run, 200 same-key replay. Returns the review id.
+ * The caller owns the key; reuse it to retry the same attempt.
+ */
+export async function startReview(input: StartReviewInput, csrfToken: string, idempotencyKey: string): Promise<string> {
   const response = await fetch(repositoryPullRequestReviewsPath(input.repositoryId, input.number), {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
-      'Idempotency-Key': crypto.randomUUID(),
+      'Idempotency-Key': idempotencyKey,
     },
     body: JSON.stringify({ requested_head_sha: input.headSha }),
   })

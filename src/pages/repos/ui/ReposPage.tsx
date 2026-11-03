@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { CheckAccessButton } from '@/features/connect-repo'
 import { repositoryDisplayName, useConnectedRepositoriesQuery } from '@/entities/repository'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -55,6 +56,7 @@ export function ReposPage() {
                 <Badge variant="secondary" className="capitalize">
                   {repo.provider}
                 </Badge>
+                {repo.capabilities.canManageSettings ? <CheckAccessButton repository={repo} /> : null}
                 <Button asChild size="sm" variant="outline">
                   <Link to={`/repos/${encodeURIComponent(repo.id)}/pull-requests`}>Pull requests</Link>
                 </Button>

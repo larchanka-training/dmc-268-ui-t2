@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
@@ -11,13 +12,32 @@ import {
 /** Starts a review for an open PR; resolves to the new review id. */
 export function useStartReviewMutation() {
   const queryClient = useQueryClient()
+  const attempt = useRef<{ fingerprint: string; key: string } | null>(null)
   return useMutation({
     mutationFn: async (input: StartReviewInput) => {
       const me = queryClient.getQueryData<Me>(meQueryKey)
       if (!me?.csrfToken) {
         throw new PullRequestHttpError(401, 'Missing CSRF token')
       }
-      return startReview(input, me.csrfToken)
+      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}`
+      if (attempt.current?.fingerprint !== fingerprint) {
+        attempt.current = { fingerprint, key: crypto.randomUUID() }
+      }
+      const { key } = attempt.current
+      try {
+        const reviewId = await startReview(input, me.csrfToken, key)
+        attempt.current = null
+        return reviewId
+      } catch (error) {
+        // Outcome unknown (no response, 5xx, 408, 429): keep the key so a retry replays instead of duplicating.
+        const uncertain =
+          !(error instanceof PullRequestHttpError) ||
+          error.status >= 500 ||
+          error.status === 408 ||
+          error.status === 429
+        if (!uncertain) attempt.current = null
+        throw error
+      }
     },
   })
 }
