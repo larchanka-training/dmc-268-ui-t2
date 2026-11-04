@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import {
   repositoryDisplayName,
-  RepositoryHttpError,
   useAvailableRepositoriesQuery,
   useConnectRepositoryMutation,
 } from '@/entities/repository'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { renderConnectError } from '@/features/connect-repo/ui/render-connect-error'
 
 export function ConnectRepoPanel() {
   const navigate = useNavigate()
@@ -63,13 +63,13 @@ export function ConnectRepoPanel() {
         </ul>
       )}
 
-      {connectMutation.isError ? (
-        <p className="text-sm text-destructive" role="alert">
-          {connectMutation.error instanceof RepositoryHttpError && connectMutation.error.status === 503
-            ? 'Service unavailable. Try again later.'
-            : 'Could not connect repository. Try again.'}
-        </p>
-      ) : null}
+      {connectMutation.isError
+        ? renderConnectError(
+            connectMutation.error,
+            () => void handleConnect(connectMutation.variables.externalId),
+            connectMutation.isPending,
+          )
+        : null}
     </div>
   )
 }

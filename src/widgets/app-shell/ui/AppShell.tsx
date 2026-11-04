@@ -16,9 +16,7 @@ export function AppShell() {
   const meQuery = useMeQuery()
   const me = meQuery.data
   const reposActive = location.pathname === '/repos' || location.pathname.startsWith('/repos/')
-  const reviewActive = ['/review', '/reviews'].some(
-    (base) => location.pathname === base || location.pathname.startsWith(`${base}/`),
-  )
+  const reviewActive = location.pathname === '/reviews' || location.pathname.startsWith('/reviews/')
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -51,9 +49,9 @@ export function AppShell() {
           >
             Repos
           </NavLink>
-          {/* Link, не NavLink: NavLink гасит aria-current, когда сам не активен (/reviews/* ≠ /review) */}
+          {/* Link, не NavLink: NavLink гасит aria-current, когда сам не активен (/reviews/* ≠ /repos) */}
           <Link
-            to="/review"
+            to="/repos"
             className={cn(
               'rounded-md px-2 py-1.5 text-sm font-medium',
               reviewActive

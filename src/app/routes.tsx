@@ -1,10 +1,10 @@
 import { Navigate, type RouteObject } from 'react-router'
 import { AuthenticatedShell } from '@/app/guards/AuthenticatedShell'
 import { RootRedirect } from '@/app/guards/RootRedirect'
-import { MOCK_DEFAULT_REVIEW_ID } from '@/entities/pull-request'
 import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
 import { RouteError, RouteNotFound } from '@/pages/not-found'
+import { RepositoryPullRequestsPage } from '@/pages/repo-pull-requests'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
 import { PullRequestPage } from '@/pages/pull-request'
 import { ReposPage } from '@/pages/repos'
@@ -26,7 +26,9 @@ export const appRoutes: RouteObject[] = [
       { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/audit', element: <AuditPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },
-      { path: '/review', element: <Navigate to={`/reviews/${MOCK_DEFAULT_REVIEW_ID}`} replace /> },
+      { path: '/repos/:repositoryId/pull-requests', element: <RepositoryPullRequestsPage /> },
+      // Retired fixture entry: old bookmarks land on the product entry (repos -> PR list -> start review).
+      { path: '/review', element: <Navigate to="/repos" replace /> },
       { path: '/reviews/:reviewId', element: <PullRequestPage />, errorElement: <RouteError /> },
     ],
   },

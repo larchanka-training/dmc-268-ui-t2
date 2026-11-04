@@ -14,12 +14,47 @@ import {
 
 export class RepositoryHttpError extends Error {
   readonly status: number
+  readonly code?: string
+  readonly botLogin?: string
+  readonly accessUrl?: string
 
-  constructor(status: number, message?: string) {
+  constructor(status: number, message?: string, details: RepositoryErrorDetails = {}) {
     super(message ?? `Repository request failed (${status})`)
     this.name = 'RepositoryHttpError'
     this.status = status
+    this.code = details.code
+    this.botLogin = details.botLogin
+    this.accessUrl = details.accessUrl
   }
+}
+
+interface RepositoryErrorDetails {
+  code?: string
+  botLogin?: string
+  accessUrl?: string
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+/** Keep `code`, `message`, `bot_login`, `access_url` from a failed connect response; tolerate non-JSON bodies. */
+async function connectHttpError(response: Response): Promise<RepositoryHttpError> {
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return new RepositoryHttpError(response.status)
+  }
+  if (typeof body !== 'object' || body === null) {
+    return new RepositoryHttpError(response.status)
+  }
+  const wire = body as Record<string, unknown>
+  return new RepositoryHttpError(response.status, optionalString(wire.message), {
+    code: optionalString(wire.code),
+    botLogin: optionalString(wire.bot_login),
+    accessUrl: optionalString(wire.access_url),
+  })
 }
 
 /** OpenAPI `Limit` default. A cursor is valid only for the limit it was issued with. */
@@ -79,7 +114,7 @@ export async function connectRepository(body: ConnectRepositoryBody, csrfToken: 
     }),
   })
   if (!response.ok) {
-    throw new RepositoryHttpError(response.status)
+    throw await connectHttpError(response)
   }
   const wire = (await response.json()) as RepositoryWire
   return parseRepository(wire)

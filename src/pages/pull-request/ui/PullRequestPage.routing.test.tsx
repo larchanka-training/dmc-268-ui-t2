@@ -38,11 +38,18 @@ describe('routing: /reviews/:reviewId', () => {
     expect(await screen.findByTestId('route-not-found')).toBeInTheDocument()
   })
 
-  it('redirects /review to the default review', async () => {
+  it('sends the retired /review entry to /repos, not to a fixture review', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ items: [], next_cursor: null }))
     const { router } = renderWithRouter('/review')
 
+    await waitFor(() => expect(router.state.location.pathname).toBe('/repos'))
+  })
+
+  it('points the Reviews/PRs nav item at the repository list, not a fixture review', async () => {
+    renderWithRouter(TEST_REVIEW_PATH)
     await title()
-    expect(router.state.location.pathname).toBe(TEST_REVIEW_PATH)
+
+    expect(screen.getByRole('link', { name: 'Reviews/PRs' })).toHaveAttribute('href', '/repos')
   })
 
   it('renders the PR inside the app shell with the Reviews/PRs nav item active', async () => {

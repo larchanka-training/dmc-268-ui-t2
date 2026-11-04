@@ -1,5 +1,10 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { fetchAvailableRepositories, fetchConnectedRepositories } from '@/entities/repository'
+import {
+  connectRepository,
+  fetchAvailableRepositories,
+  fetchConnectedRepositories,
+  RepositoryHttpError,
+} from '@/entities/repository'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -87,4 +92,32 @@ test('fetchAvailableRepositories keeps reading when a page has no items but next
     '/api/v1/repositories/available?limit=20&cursor=after-short',
     '/api/v1/repositories/available?limit=20&cursor=after-empty',
   ])
+})
+
+test('connectRepository keeps code, message, bot_login and access_url from a failed response body', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json(
+        {
+          code: 'BOT_ACCESS_REQUIRED',
+          message: 'Invite the bot with Write access.',
+          bot_login: 'review-bot',
+          access_url: 'https://github.com/octocat/hello/settings/access',
+        },
+        { status: 409 },
+      ),
+    ),
+  )
+
+  const error = await connectRepository({ provider: 'github', externalId: '1' }, 'csrf').catch((e: unknown) => e)
+
+  expect(error).toBeInstanceOf(RepositoryHttpError)
+  expect(error).toMatchObject({
+    status: 409,
+    code: 'BOT_ACCESS_REQUIRED',
+    message: 'Invite the bot with Write access.',
+    botLogin: 'review-bot',
+    accessUrl: 'https://github.com/octocat/hello/settings/access',
+  })
 })

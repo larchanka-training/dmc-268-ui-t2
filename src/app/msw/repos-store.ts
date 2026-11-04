@@ -51,10 +51,25 @@ export function listAvailableRepositoryPage(): { items: AvailableRepositoryWire[
   }
 }
 
-export function connectRepositoryInStore(
-  provider: string,
-  externalId: string,
-): { status: 'created' | 'existing'; repository: RepositoryWire } | { status: 'not_found' } {
+/** Demo seeds with scripted connect outcomes (see docs/proposals/msw-bot-connect-start-review.md). */
+const BOT_ACCESS_EXTERNAL_ID = '1002'
+const MISCONFIGURED_BOT_EXTERNAL_ID = '1003'
+export const MSW_BOT_LOGIN = 'dmc-bot-msw'
+
+/** Connect attempts per seed that needs the bot invited first. */
+const connectAttempts = new Map<string, number>()
+
+export type ConnectOutcome =
+  | { status: 'created' | 'existing'; repository: RepositoryWire }
+  | { status: 'not_found' }
+  | { status: 'bot_access_required'; botLogin: string; accessUrl: string }
+  | { status: 'service_unavailable' }
+
+export function isConnectedRepositoryId(repositoryId: string): boolean {
+  return Array.from(connectedByExternalId.values()).some((repo) => repo.id === repositoryId)
+}
+
+export function connectRepositoryInStore(provider: string, externalId: string): ConnectOutcome {
   const existing = connectedByExternalId.get(externalId)
   if (existing && existing.provider === provider) {
     return { status: 'existing', repository: existing }
@@ -63,7 +78,21 @@ export function connectRepositoryInStore(
   if (!seed) {
     return { status: 'not_found' }
   }
-  const connected = toConnectedWire(seed)
+  if (externalId === MISCONFIGURED_BOT_EXTERNAL_ID) {
+    return { status: 'service_unavailable' }
+  }
+  if (externalId === BOT_ACCESS_EXTERNAL_ID) {
+    const attempt = (connectAttempts.get(externalId) ?? 0) + 1
+    connectAttempts.set(externalId, attempt)
+    if (attempt === 1) {
+      return {
+        status: 'bot_access_required',
+        botLogin: MSW_BOT_LOGIN,
+        accessUrl: `https://github.com/${seed.owner}/${seed.name}/settings/access`,
+      }
+    }
+  }
+  const connected = toConnectedWire(seed, 'admin')
   connectedByExternalId.set(externalId, connected)
   return { status: 'created', repository: connected }
 }
@@ -71,4 +100,5 @@ export function connectRepositoryInStore(
 /** Test/dev helper — not used by production UI. */
 export function resetRepositoryStore(): void {
   connectedByExternalId.clear()
+  connectAttempts.clear()
 }
