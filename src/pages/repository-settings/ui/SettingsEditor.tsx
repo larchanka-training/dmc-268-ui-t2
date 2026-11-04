@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   replaceRepositorySettings,
@@ -23,7 +23,15 @@ export function SettingsEditor({
   const client = useQueryClient()
   const key = repositorySettingsKey(me?.user.id, repositoryId)
   const observedQuery = useRef(client.getQueryCache().find({ queryKey: key, exact: true })).current
+  const live = useRef(false)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
   const currentScope = () =>
+    live.current &&
     client.getQueryData<Me>(meQueryKey)?.user.id === me?.user.id &&
     client.getQueryCache().find({ queryKey: key, exact: true }) === observedQuery &&
     (observedQuery?.getObserversCount() ?? 0) > 0

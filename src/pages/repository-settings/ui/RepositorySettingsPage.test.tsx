@@ -871,3 +871,46 @@ test('an aborted old GET401 body cannot reset a newer valid session and discard 
   expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes')
   expect(meReads).toBe(1)
 })
+
+test('an old PUT403 cannot clear a recovered editor draft on the same still-observed settings query', async () => {
+  let denied = false
+  let recovered = false
+  let completeOld!: (response: Response) => void
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PUT')
+        return new Promise<Response>((resolve) => {
+          completeOld = resolve
+        })
+      if (String(input).endsWith('/rules-preview') && denied)
+        return Response.json({ code: 'ACCESS_DENIED' }, { status: 403 })
+      return readResponse(
+        input,
+        recovered ? { ...settings, version: 'recovered-one', minimum_severity: 'critical' } : settings,
+        recovered ? '"recovered:B"' : '"initial:A"',
+      )
+    }),
+  )
+  const { user, queryClient } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
+  const region = screen.getByRole('region', { name: 'Current file criteria' })
+  await within(region).findByText(preview.instructions[0])
+  denied = true
+  await user.click(within(region).getByRole('button', { name: 'Refresh file criteria' }))
+  await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Automatic reviews' })).not.toBeInTheDocument())
+  denied = false
+  recovered = true
+  await user.click(within(region).getByRole('button', { name: 'Refresh file criteria' }))
+  await within(region).findByText(preview.instructions[0])
+  await user.click(screen.getByRole('button', { name: 'Refresh settings' }))
+  await waitFor(() => expect(screen.getByLabelText('Publication minimum severity')).toHaveValue('critical'))
+  await user.click(screen.getByRole('checkbox', { name: 'Automatic reviews' }))
+  act(() => {
+    completeOld(Response.json({ code: 'ACCESS_DENIED' }, { status: 403 }))
+  })
+  await waitFor(() => expect(queryClient.isMutating()).toBe(0))
+  expect(screen.getByRole('checkbox', { name: 'Automatic reviews' })).toBeChecked()
+  expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes')
+  expect(screen.queryByText(/^Administrator access is required/)).not.toBeInTheDocument()
+})
