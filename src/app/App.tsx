@@ -4,6 +4,7 @@ import { QueryProvider } from '@/app/providers/QueryProvider'
 import { SessionLifecycle } from '@/app/providers/SessionLifecycle'
 import { router } from '@/app/router'
 import { DataSourceProvider } from '@/entities/pull-request'
+import { DebugStrip } from '@/widgets/debug-strip/ui/DebugStrip'
 
 const dataSource = createDataSource()
 
@@ -13,6 +14,7 @@ export function App() {
       <SessionLifecycle>
         <DataSourceProvider dataSource={dataSource}>
           <RouterProvider router={router} />
+          <DebugStrip />
         </DataSourceProvider>
       </SessionLifecycle>
     </QueryProvider>

@@ -70,7 +70,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build UI image
-        run: docker build -t dmc-268-ui-t2:${{ github.sha }} .
+        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t dmc-268-ui-t2:${{ github.sha }} .
 
       - name: Test GitHub webhook proxy
         run: python3 -m unittest -v tests/test_nginx_webhook_proxy.py tests/test_nginx_review_stream.py
@@ -105,7 +105,7 @@ jobs:
                 --password-stdin
 
       - name: Build immutable UI image
-        run: docker build -t "${IMAGE_NAME}:sha-${GITHUB_SHA}" .
+        run: docker build --build-arg GIT_SHA=${{ github.sha }} -t "${IMAGE_NAME}:sha-${GITHUB_SHA}" .
 
       - name: Push immutable UI image
         run: docker push "${IMAGE_NAME}:sha-${GITHUB_SHA}"

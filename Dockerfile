@@ -12,6 +12,9 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+ARG GIT_SHA=unknown
+ENV VITE_GIT_SHA=$GIT_SHA
+
 RUN pnpm build
 
 
