@@ -38,6 +38,11 @@ export function useHashTarget({ ready, fileOfComment }: UseHashTargetOptions) {
 
   const hash = decodeHash(location.hash)
   const jump = (location.state as JumpState | null)?.jump
+  const fileOfCommentRef = useRef(fileOfComment)
+
+  useEffect(() => {
+    fileOfCommentRef.current = fileOfComment
+  }, [fileOfComment])
 
   // Раскрытие файла обновляет стор, на который подписан только DiffFileSection. Подписка здесь
   // перерисовывает и хук после того, как карточка попала в DOM, — иначе скролл не повторился бы.
@@ -55,7 +60,7 @@ export function useHashTarget({ ready, fileOfComment }: UseHashTargetOptions) {
     if (hash.startsWith(COMMENT_PREFIX)) {
       const commentId = hash.slice(COMMENT_PREFIX.length)
       expandComment(commentId)
-      const filePath = fileOfComment.get(commentId)
+      const filePath = fileOfCommentRef.current.get(commentId)
       if (filePath) expandFile(filePath)
     } else if (hash.startsWith(FILE_PREFIX)) {
       expandFile(hash.slice(FILE_PREFIX.length))
@@ -63,7 +68,7 @@ export function useHashTarget({ ready, fileOfComment }: UseHashTargetOptions) {
       return
     }
     pendingScroll.current = hash.slice(1)
-  }, [ready, hash, jump, fileOfComment, expandComment, expandFile])
+  }, [ready, hash, jump, expandComment, expandFile])
 
   // Скролл — после коммита: цель может появиться только когда свёрнутый файл раскроется.
   // Пока элемента нет в DOM, цель остаётся в ref и ждёт следующего коммита.

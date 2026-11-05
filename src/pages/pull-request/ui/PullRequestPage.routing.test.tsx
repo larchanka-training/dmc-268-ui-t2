@@ -114,13 +114,24 @@ describe('routing: ?view=', () => {
 
     await user.click(within(screen.getByTestId('file-list')).getByRole('link', { name: /old-helper\.ts/ }))
 
-    expect(router.state.location.hash).toBe('#file-src/legacy/old-helper.ts')
+    expect(router.state.location.hash).toBe('#comment-c4')
+    expect(new URLSearchParams(router.state.location.search).get('file')).toBeNull()
     expect(viewParam(router.state.location.search)).toBe('split')
     expect(screen.getAllByTestId('diff-table')[0]).toHaveAttribute('data-view', 'split')
   })
 })
 
 describe('routing: #hash anchors', () => {
+  it('ignores a comment hash that is outside the active filter', async () => {
+    renderWithRouter(`${TEST_REVIEW_PATH}?severity=high#comment-c5`)
+    await title()
+
+    expect(document.querySelector('[data-comment-id="c5"]')).toBeNull()
+    expect(document.querySelector('[aria-current="true"]')).toBeNull()
+    const scroll = Element.prototype.scrollIntoView as unknown as { mock: { contexts: Element[] } }
+    expect(scroll.mock.contexts.some((el) => el.getAttribute('data-comment-id') === 'c5')).toBe(false)
+  })
+
   it('expands and scrolls to the comment from #comment-<id>', async () => {
     renderWithRouter(`${TEST_REVIEW_PATH}#comment-c1`)
     await title()

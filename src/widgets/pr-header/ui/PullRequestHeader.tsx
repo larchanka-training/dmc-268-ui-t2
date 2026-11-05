@@ -67,9 +67,26 @@ export interface PullRequestHeaderProps {
   pullRequest: PullRequest | null
   counts: Record<Severity, number>
   onSelectSeverity: (severity: Severity) => void
+  walkLabel: string
+  onNext: () => void
+  onPrev: () => void
+  nextDisabled: boolean
+  prevDisabled: boolean
+  activeSeverity: Severity | null
 }
 
-export function PullRequestHeader({ review, pullRequest: pr, counts, onSelectSeverity }: PullRequestHeaderProps) {
+export function PullRequestHeader({
+  review,
+  pullRequest: pr,
+  counts,
+  onSelectSeverity,
+  walkLabel,
+  onNext,
+  onPrev,
+  nextDisabled,
+  prevDisabled,
+  activeSeverity,
+}: PullRequestHeaderProps) {
   return (
     <header className="space-y-3 border-b border-border pb-4">
       <h1 className="text-xl font-semibold">
@@ -125,7 +142,24 @@ export function PullRequestHeader({ review, pullRequest: pr, counts, onSelectSev
         >
           {PUBLICATION_LABEL[review.publicationStatus]}
         </Badge>
-        <SeveritySummary counts={counts} onSelect={onSelectSeverity} />
+        <SeveritySummary counts={counts} onSelect={onSelectSeverity} active={activeSeverity} />
+        <span className="text-sm text-muted-foreground">{walkLabel}</span>
+        <button
+          type="button"
+          onClick={onPrev}
+          disabled={prevDisabled}
+          className="rounded-md border border-input px-2 py-1 text-sm disabled:opacity-50"
+        >
+          Назад
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={nextDisabled}
+          className="rounded-md border border-input px-2 py-1 text-sm disabled:opacity-50"
+        >
+          Дальше
+        </button>
       </div>
 
       {review.summary && (

@@ -3,16 +3,16 @@ import type { ReviewComment, Severity } from '@/entities/review-comment'
 export interface FindingFilters {
   /** Show only findings in this file; `null` = every file. */
   path: string | null
-  /** Show only these severities; empty = every severity. */
-  severities: Severity[]
+  /** Show only this level; `null` = every level. */
+  severity: Severity | null
   /** Case-insensitive text search over the finding's text. */
   query: string
 }
 
-export const EMPTY_FINDING_FILTERS: FindingFilters = { path: null, severities: [], query: '' }
+export const EMPTY_FINDING_FILTERS: FindingFilters = { path: null, severity: null, query: '' }
 
 export function hasActiveFindingFilters(filters: FindingFilters): boolean {
-  return filters.path !== null || filters.severities.length > 0 || filters.query !== ''
+  return filters.path !== null || filters.severity !== null || filters.query !== ''
 }
 
 function matchesQuery(finding: ReviewComment, needle: string): boolean {
@@ -29,7 +29,7 @@ export function filterFindings(findings: ReviewComment[], filters: FindingFilter
   return findings.filter(
     (finding) =>
       (filters.path === null || finding.filePath === filters.path) &&
-      (filters.severities.length === 0 || filters.severities.includes(finding.severity)) &&
+      (filters.severity === null || finding.severity === filters.severity) &&
       matchesQuery(finding, needle),
   )
 }

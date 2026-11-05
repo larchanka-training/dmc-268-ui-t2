@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { CommentCard } from '@/features/review-comment-card'
 import type { ReviewComment } from '@/entities/review-comment'
@@ -8,13 +9,21 @@ import { FIX_DIFF, FIX_RESULT, TEST_COMMENTS } from '@/test/fixtures'
 const withFix = TEST_COMMENTS.find((c) => c.id === 'c1') as ReviewComment
 const withoutFix = TEST_COMMENTS.find((c) => c.id === 'c2') as ReviewComment
 
+function renderCard(comment: ReviewComment) {
+  return render(
+    <MemoryRouter>
+      <CommentCard comment={comment} />
+    </MemoryRouter>,
+  )
+}
+
 function toggle(comment: ReviewComment) {
   return screen.getByRole('button', { name: new RegExp(comment.title) })
 }
 
 describe('CommentCard', () => {
   it('is collapsed by default: severity and title visible, body and fix hidden', () => {
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     expect(toggle(withFix)).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByTestId('severity-badge')).toHaveTextContent('Critical')
@@ -25,7 +34,7 @@ describe('CommentCard', () => {
 
   it('expands on click and shows the body and the suggested fix', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     await user.click(toggle(withFix))
 
@@ -36,7 +45,7 @@ describe('CommentCard', () => {
 
   it('collapses again on a second click', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     await user.click(toggle(withFix))
     await user.click(toggle(withFix))
@@ -46,7 +55,7 @@ describe('CommentCard', () => {
 
   it('expands from the keyboard with Enter', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     await user.tab()
     expect(toggle(withFix)).toHaveFocus()
@@ -57,7 +66,7 @@ describe('CommentCard', () => {
 
   it('toggles from the keyboard with Space', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     await user.tab()
     await user.keyboard(' ')
@@ -69,7 +78,7 @@ describe('CommentCard', () => {
 
   it('links the toggle to the region it controls', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
     await user.click(toggle(withFix))
 
     const regionId = toggle(withFix).getAttribute('aria-controls')
@@ -84,7 +93,7 @@ describe('CommentCard', () => {
     ['low', 'c5', 'Low'],
   ])('shows %s severity as text, not only as colour', (severity, id, label) => {
     const comment = TEST_COMMENTS.find((c) => c.id === id) as ReviewComment
-    render(<CommentCard comment={comment} />)
+    renderCard(comment)
 
     const badge = screen.getByTestId('severity-badge')
     expect(badge).toHaveTextContent(label)
@@ -93,7 +102,7 @@ describe('CommentCard', () => {
 
   it('renders the suggested fix as diff rows with add/del/context types', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
     await user.click(toggle(withFix))
 
     const rows = screen.getAllByTestId('fix-row')
@@ -105,7 +114,7 @@ describe('CommentCard', () => {
 
   it('copies the resulting code (context + added lines) with "Copy fix"', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
     await user.click(toggle(withFix))
 
     await user.click(screen.getByRole('button', { name: /copy fix/i }))
@@ -116,7 +125,7 @@ describe('CommentCard', () => {
 
   it('has no fix block and no copy button when there is no suggestedFix', async () => {
     const user = userEvent.setup()
-    render(<CommentCard comment={withoutFix} />)
+    renderCard(withoutFix)
     await user.click(toggle(withoutFix))
 
     expect(screen.queryByRole('button', { name: /copy fix/i })).not.toBeInTheDocument()
@@ -126,7 +135,7 @@ describe('CommentCard', () => {
   it('renders inline code in the explanation safely (no raw HTML)', async () => {
     const user = userEvent.setup()
     const comment: ReviewComment = { ...withFix, explanation: 'Use `safeParse` here <img src=x onerror=alert(1)>' }
-    const { container } = render(<CommentCard comment={comment} />)
+    const { container } = renderCard(comment)
     await user.click(toggle(comment))
 
     expect(screen.getByText('safeParse').tagName).toBe('CODE')
@@ -142,7 +151,7 @@ describe('CommentCard', () => {
       evidence: 'What proves it',
       recommendation: 'What to do',
     }
-    render(<CommentCard comment={comment} />)
+    renderCard(comment)
     await user.click(toggle(comment))
 
     expect(screen.getByRole('region', { name: 'Проблема' })).toHaveTextContent('Why it is wrong')
@@ -152,13 +161,13 @@ describe('CommentCard', () => {
   })
 
   it('shows a line range when the finding spans several lines', () => {
-    render(<CommentCard comment={{ ...withoutFix, startLine: 10, line: 12 }} />)
+    renderCard({ ...withoutFix, startLine: 10, line: 12 })
 
     expect(toggle(withoutFix)).toHaveTextContent('new · 10–12')
   })
 
   it('exposes the comment id as the DOM id for hash links', () => {
-    render(<CommentCard comment={withFix} />)
+    renderCard(withFix)
 
     expect(screen.getByTestId('comment-card')).toHaveAttribute('id', 'comment-c1')
     expect(screen.getByTestId('comment-card')).toHaveAttribute('data-comment-id', 'c1')
