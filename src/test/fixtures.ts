@@ -17,6 +17,7 @@ export const TEST_REVIEW: Review = {
   createdAt: '2026-03-01T10:00:00.000Z',
   startedAt: '2026-03-01T10:00:01.000Z',
   finishedAt: '2026-03-02T12:30:00.000Z',
+  coverage: null,
   error: null,
 }
 

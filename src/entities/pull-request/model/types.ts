@@ -47,6 +47,7 @@ export interface Review {
   startedAt: string | null
   /** UTC ISO 8601 */
   finishedAt: string | null
+  coverage: CoverageWire | null
   error: { reasonCode: ReviewReasonCode; retryable: boolean; retryAt: string | null } | null
 }
 
@@ -143,6 +144,7 @@ export function parseReview(wire: ReviewDetailWire): Review {
     createdAt: wire.created_at,
     startedAt: wire.started_at,
     finishedAt: wire.finished_at,
+    coverage: wire.coverage,
     error: wire.error && {
       reasonCode: wire.error.reason_code,
       retryable: wire.error.retryable,
