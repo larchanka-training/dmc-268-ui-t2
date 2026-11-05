@@ -1,4 +1,4 @@
-import { Navigate, type RouteObject } from 'react-router'
+import { type RouteObject } from 'react-router'
 import { AuthenticatedShell } from '@/app/guards/AuthenticatedShell'
 import { RootRedirect } from '@/app/guards/RootRedirect'
 import { ConnectRepoPage } from '@/pages/connect-repo'
@@ -10,6 +10,7 @@ import { PullRequestPage } from '@/pages/pull-request'
 import { ReposPage } from '@/pages/repos'
 import { AnalyticsPage } from '@/pages/analytics'
 import { AuditPage } from '@/pages/audit'
+import { ReviewsPage } from '@/pages/reviews'
 
 /**
  * Декларация маршрутов (data router). Данные страница PR грузит сама через TanStack Query,
@@ -27,8 +28,7 @@ export const appRoutes: RouteObject[] = [
       { path: '/audit', element: <AuditPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },
       { path: '/repos/:repositoryId/pull-requests', element: <RepositoryPullRequestsPage /> },
-      // Retired fixture entry: old bookmarks land on the product entry (repos -> PR list -> start review).
-      { path: '/review', element: <Navigate to="/repos" replace /> },
+      { path: '/reviews', element: <ReviewsPage /> },
       { path: '/reviews/:reviewId', element: <PullRequestPage />, errorElement: <RouteError /> },
     ],
   },
