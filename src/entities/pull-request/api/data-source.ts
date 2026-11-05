@@ -10,7 +10,7 @@ export interface PullRequestDataSource {
   getReview(reviewId: string): Promise<Review>
   /** Поиск по `GET /repositories/{id}/pull-requests`; null — PR уже не открыт */
   getPullRequest(repositoryId: string, number: number): Promise<PullRequest | null>
-  /** `GET /reviews/{id}/diff`; null — diff ещё не сохранён (404) */
+  /** `GET /reviews/{id}/diff`; null — ещё не сохранён (404), 410 → DiffExpiredError */
   getDiff(reviewId: string): Promise<DiffFile[] | null>
   /** Все страницы `GET /reviews/{id}/findings` */
   getReviewComments(reviewId: string): Promise<ReviewComment[]>
@@ -22,5 +22,12 @@ export class ReviewNotFoundError extends NonRetryableError {
   constructor(id: string) {
     super(`Review ${id} not found`)
     this.name = 'ReviewNotFoundError'
+  }
+}
+
+export class DiffExpiredError extends NonRetryableError {
+  constructor() {
+    super('Stored diff has expired')
+    this.name = 'DiffExpiredError'
   }
 }
