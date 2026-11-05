@@ -119,6 +119,17 @@ describe('PullRequestPage: review progress', () => {
     expect(screen.getByTestId('review-error-reason')).toHaveTextContent('можно повторить позже')
   })
 
+  it('shows that a person stopped the review', async () => {
+    await renderReview({
+      status: 'FAILED',
+      publicationStatus: 'NOT_READY',
+      error: { reasonCode: 'USER_CANCELLED', retryable: false, retryAt: null },
+    })
+
+    expect(screen.getByTestId('review-error-reason')).toHaveTextContent('остановлено человеком')
+    expect(screen.getByTestId('review-error-reason')).not.toHaveTextContent('можно повторить позже')
+  })
+
   it('applies a status from the live stream and refetches diff and findings', async () => {
     let review: Review = { ...TEST_REVIEW, status: 'LLM_PROCESSING', publicationStatus: 'NOT_READY', finishedAt: null }
     let stream: ReviewStreamHandlers | undefined

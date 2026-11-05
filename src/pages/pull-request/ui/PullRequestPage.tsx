@@ -6,10 +6,13 @@ import {
   DiffExpiredError,
   ReviewNotFoundError,
   isReviewSettled,
+  useCancelReviewMutation,
   useDiffQuery,
   useLiveReview,
   usePullRequestQuery,
   useReviewCommentsQuery,
+  useStartReviewMutation,
+  type ReviewStatus,
 } from '@/entities/pull-request'
 import { countBySeverity, type Severity } from '@/entities/review-comment'
 import {
@@ -40,6 +43,12 @@ import { ReviewNotFound } from '@/pages/pull-request/ui/ReviewNotFound'
 
 const NO_COMMENTS: never[] = []
 const NO_FILES: DiffFile[] = []
+const CANCELLABLE_STATUSES: ReadonlySet<ReviewStatus> = new Set([
+  'QUEUED',
+  'FETCHING_DIFF',
+  'PARSING_CONTEXT',
+  'LLM_PROCESSING',
+])
 
 export function PullRequestPage() {
   const { reviewId = '' } = useParams()
@@ -48,6 +57,8 @@ export function PullRequestPage() {
   const [viewMode, setViewMode] = useViewMode()
 
   const { query: reviewQuery, transport } = useLiveReview(reviewId)
+  const cancelMutation = useCancelReviewMutation(reviewId)
+  const startMutation = useStartReviewMutation()
   const prQuery = usePullRequestQuery(reviewQuery.data)
   const diffQuery = useDiffQuery(reviewId)
   const commentsQuery = useReviewCommentsQuery(reviewId)
@@ -97,6 +108,32 @@ export function PullRequestPage() {
 
   const review = reviewQuery.data
   const analysisDone = review.status === 'COMPLETED' || review.status === 'PARTIAL'
+  const openPullRequest = prQuery.isSuccess ? prQuery.data : null
+  const showStop = CANCELLABLE_STATUSES.has(review.status)
+  const showRunAgain = isReviewSettled(review) && openPullRequest !== null
+
+  async function handleStop() {
+    try {
+      await cancelMutation.mutateAsync()
+    } catch {
+      // The open review stays on screen; a later refresh still shows its status.
+    }
+  }
+
+  async function handleRunAgain() {
+    if (!openPullRequest) return
+    try {
+      const nextReviewId = await startMutation.mutateAsync({
+        repositoryId: review.repositoryId,
+        number: review.pullRequestNumber,
+        headSha: openPullRequest.headSha,
+        rerun_of: review.id,
+      })
+      navigate(`/reviews/${encodeURIComponent(nextReviewId)}`)
+    } catch {
+      // Stay on this review when the start call fails.
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
@@ -110,7 +147,31 @@ export function PullRequestPage() {
         onSelectSeverity={selectSeverity}
       />
 
-      <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
+        </div>
+        {showStop || showRunAgain ? (
+          <div className="flex shrink-0 gap-2">
+            {showStop ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={cancelMutation.isPending}
+                onClick={() => void handleStop()}
+              >
+                Stop
+              </Button>
+            ) : null}
+            {showRunAgain ? (
+              <Button type="button" size="sm" disabled={startMutation.isPending} onClick={() => void handleRunAgain()}>
+                Run again
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {allComments.length > 0 ? (
         <FindingFiltersPanel

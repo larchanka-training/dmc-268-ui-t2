@@ -2,6 +2,7 @@
 const API_V1 = '/api/v1'
 
 export const reviewPath = (reviewId: string) => `${API_V1}/reviews/${encodeURIComponent(reviewId)}`
+export const reviewCancellationPath = (reviewId: string) => `${reviewPath(reviewId)}/cancellation`
 export const reviewFindingsPath = (reviewId: string) => `${reviewPath(reviewId)}/findings`
 export const reviewEventsStreamPath = (reviewId: string) => `${reviewPath(reviewId)}/events/stream`
 export const reviewDiffPath = (reviewId: string) => `${reviewPath(reviewId)}/diff`
