@@ -1,4 +1,8 @@
-import { repositoryPullRequestReviewsPath, repositoryPullRequestsPath } from '@/entities/pull-request/model/paths'
+import {
+  repositoryPullRequestReviewsPath,
+  repositoryPullRequestsPath,
+  reviewCancellationPath,
+} from '@/entities/pull-request/model/paths'
 import { parsePullRequest, type PullRequest, type PullRequestPageWire } from '@/entities/pull-request/model/types'
 
 export class PullRequestHttpError extends Error {
@@ -61,6 +65,8 @@ export interface StartReviewInput {
   repositoryId: string
   number: number
   headSha: string
+  /** Prior review this start repeats. Omitted from the body when absent. */
+  rerun_of?: string
 }
 
 /**
@@ -76,11 +82,29 @@ export async function startReview(input: StartReviewInput, csrfToken: string, id
       'X-CSRF-Token': csrfToken,
       'Idempotency-Key': idempotencyKey,
     },
-    body: JSON.stringify({ requested_head_sha: input.headSha }),
+    body: JSON.stringify({
+      requested_head_sha: input.headSha,
+      ...(input.rerun_of !== undefined ? { rerun_of: input.rerun_of } : {}),
+    }),
   })
   if (!response.ok) {
     throw await httpError(response)
   }
   const wire = (await response.json()) as { review_id: string }
   return wire.review_id
+}
+
+/** OpenAPI `cancelReview`: empty body. Same cookie, CSRF, and Idempotency-Key headers as start. */
+export async function cancelReview(reviewId: string, csrfToken: string, idempotencyKey: string): Promise<void> {
+  const response = await fetch(reviewCancellationPath(reviewId), {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'X-CSRF-Token': csrfToken,
+      'Idempotency-Key': idempotencyKey,
+    },
+  })
+  if (!response.ok) {
+    throw await httpError(response)
+  }
 }

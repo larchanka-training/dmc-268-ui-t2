@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
 import {
+  cancelReview,
   fetchRepositoryPullRequests,
   PullRequestHttpError,
   startReview,
@@ -19,7 +20,7 @@ export function useStartReviewMutation() {
       if (!me?.csrfToken) {
         throw new PullRequestHttpError(401, 'Missing CSRF token')
       }
-      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}`
+      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}|${input.rerun_of ?? ''}`
       if (attempt.current?.fingerprint !== fingerprint) {
         attempt.current = { fingerprint, key: crypto.randomUUID() }
       }
@@ -39,6 +40,22 @@ export function useStartReviewMutation() {
         throw error
       }
     },
+  })
+}
+
+/** Posts cancellation, then refreshes the open review. */
+export function useCancelReviewMutation(reviewId: string) {
+  const queryClient = useQueryClient()
+  const userId = useMeQuery().data?.user.id
+  return useMutation({
+    mutationFn: async () => {
+      const me = queryClient.getQueryData<Me>(meQueryKey)
+      if (!me?.csrfToken) {
+        throw new PullRequestHttpError(401, 'Missing CSRF token')
+      }
+      await cancelReview(reviewId, me.csrfToken, crypto.randomUUID())
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: reviewQueryKey(reviewId, userId) }),
   })
 }
 

@@ -31,6 +31,7 @@ export {
   type StartReviewInput,
 } from '@/entities/pull-request/api/pull-request-client'
 export {
+  useCancelReviewMutation,
   useDiffQuery,
   usePullRequestQuery,
   useRepositoryPullRequestsQuery,
