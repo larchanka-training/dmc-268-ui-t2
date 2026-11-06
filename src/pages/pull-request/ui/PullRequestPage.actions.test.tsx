@@ -168,3 +168,62 @@ it('uses a new Idempotency-Key when Run again targets a different review', async
   expect(key(starts[0])).toMatch(/\S+/)
   expect(key(starts[1])).not.toBe(key(starts[0]))
 })
+
+it('shows an error and does not start a review when the pull request cannot be refreshed', async () => {
+  const starts: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/pull-requests/42/reviews')) starts.push(url)
+      return Response.json({ review_id: 'rev-new', status: 'QUEUED' }, { status: 202 })
+    }),
+  )
+  let reads = 0
+  const { user } = renderReview({ status: 'FAILED', publicationStatus: 'NOT_READY' }, async () => {
+    reads += 1
+    if (reads > 1) throw new Error('github down')
+    return TEST_PR
+  })
+
+  await user.click(await screen.findByRole('button', { name: 'Run again' }))
+
+  await waitFor(() => expect(starts).toEqual([]))
+  expect(screen.getByText('Could not start review. Try again.')).toBeInTheDocument()
+})
+
+it('shows the integration error when Run again is blocked', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ code: 'INTEGRATION_UNHEALTHY', message: 'unhealthy' }, { status: 409 })),
+  )
+  const { user } = renderReview({ status: 'FAILED', publicationStatus: 'NOT_READY' })
+
+  await user.click(await screen.findByRole('button', { name: 'Run again' }))
+
+  expect(await screen.findByText(/integration is unhealthy/i)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Repositories' })).toHaveAttribute('href', '/repos')
+})
+
+it('starts Run again with the commit from a fresh pull request read', async () => {
+  const bodies: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/pull-requests/42/reviews')) bodies.push(String(init?.body ?? ''))
+      return Response.json({ review_id: 'rev-new', status: 'QUEUED' }, { status: 202 })
+    }),
+  )
+  let armFresh = false
+  const { user } = renderReview({ status: 'FAILED', publicationStatus: 'NOT_READY' }, async () => ({
+    ...TEST_PR,
+    headSha: armFresh ? 'fresh-sha' : 'stale-sha',
+  }))
+  await screen.findByRole('button', { name: 'Run again' })
+  armFresh = true
+
+  await user.click(screen.getByRole('button', { name: 'Run again' }))
+
+  await waitFor(() => expect(bodies).toHaveLength(1))
+  expect(JSON.parse(bodies[0] ?? '{}')).toMatchObject({ requested_head_sha: 'fresh-sha', rerun_of: TEST_REVIEW_ID })
+})
