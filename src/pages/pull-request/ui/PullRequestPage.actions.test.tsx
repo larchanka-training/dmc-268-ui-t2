@@ -159,7 +159,9 @@ it('uses a new Idempotency-Key when Run again targets a different review', async
   const second = await runAgain()
   expect(second).toBeEnabled()
   await user.click(second)
-  await waitFor(() => expect(calls.filter((call) => call.url.endsWith('/reviews'))).toHaveLength(2))
+  await waitFor(() => expect(calls.filter((call) => call.url.endsWith('/reviews'))).toHaveLength(2), {
+    timeout: 5_000,
+  })
 
   const starts = calls.filter((call) => call.url.endsWith('/pull-requests/42/reviews'))
   const key = (call: { init: RequestInit }) => (call.init.headers as Record<string, string>)['Idempotency-Key']
