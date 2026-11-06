@@ -9,6 +9,7 @@ import {
   ReviewNotFoundError,
 } from '@/entities/pull-request'
 import type { PullRequestWire, ReviewDetailWire } from '@/entities/pull-request/model/types'
+import { NonRetryableError } from '@/shared/lib/non-retryable-error'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -97,13 +98,18 @@ describe('ApiPullRequestDataSource', () => {
     )
   })
 
-  it('getDiff returns null on 410 so findings can still load', async () => {
+  it('getDiff rejects with a distinct nonretryable expiry error on 410', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(null, { status: 410 })),
     )
 
-    await expect(ds.getDiff('rev-1')).resolves.toBeNull()
+    const error = await ds.getDiff('rev-1').then(
+      () => null,
+      (err: unknown) => err,
+    )
+    expect(error).toMatchObject({ name: 'DiffExpiredError' })
+    expect(error).toBeInstanceOf(NonRetryableError)
   })
 
   it('getDiff rejects with ReviewHttpError on unexpected failures', async () => {
