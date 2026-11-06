@@ -9,11 +9,16 @@ export function RepositoryPullRequestsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-lg font-semibold text-foreground">Open pull requests</h1>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/repos">Back to repositories</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/repos/${encodeURIComponent(repositoryId)}/settings`}>Rules &amp; settings</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/repos">Back to repositories</Link>
+          </Button>
+        </div>
       </div>
 
       {pullRequestsQuery.isPending ? (
