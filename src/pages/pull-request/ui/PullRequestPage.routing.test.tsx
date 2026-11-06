@@ -38,18 +38,24 @@ describe('routing: /reviews/:reviewId', () => {
     expect(await screen.findByTestId('route-not-found')).toBeInTheDocument()
   })
 
-  it('sends the retired /review entry to /repos, not to a fixture review', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ items: [], next_cursor: null }))
-    const { router } = renderWithRouter('/review')
+  it('shows the missing page for the retired /review address', async () => {
+    renderWithRouter('/review')
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/repos'))
+    expect(await screen.findByTestId('route-not-found')).toBeInTheDocument()
   })
 
-  it('points the Reviews/PRs nav item at the repository list, not a fixture review', async () => {
+  it('points the Reviews/PRs nav item at the review list', async () => {
     renderWithRouter(TEST_REVIEW_PATH)
     await title()
 
-    expect(screen.getByRole('link', { name: 'Reviews/PRs' })).toHaveAttribute('href', '/repos')
+    expect(screen.getByRole('link', { name: 'Reviews/PRs' })).toHaveAttribute('href', '/reviews')
+  })
+
+  it('links back to the review list', async () => {
+    renderWithRouter(TEST_REVIEW_PATH)
+    await title()
+
+    expect(screen.getByRole('link', { name: 'Back to reviews' })).toHaveAttribute('href', '/reviews')
   })
 
   it('renders the PR inside the app shell with the Reviews/PRs nav item active', async () => {

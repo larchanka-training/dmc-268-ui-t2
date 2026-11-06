@@ -51,7 +51,7 @@ export function AppShell() {
           </NavLink>
           {/* Link, не NavLink: NavLink гасит aria-current, когда сам не активен (/reviews/* ≠ /repos) */}
           <Link
-            to="/repos"
+            to="/reviews"
             className={cn(
               'rounded-md px-2 py-1.5 text-sm font-medium',
               reviewActive
