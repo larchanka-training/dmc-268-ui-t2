@@ -90,7 +90,7 @@ export function AppShell() {
           </NavLink>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-6">
+        <main className={cn('min-w-0 flex-1 overflow-auto p-3 pb-16 sm:p-6 sm:pb-16')}>
           <Outlet />
         </main>
       </div>

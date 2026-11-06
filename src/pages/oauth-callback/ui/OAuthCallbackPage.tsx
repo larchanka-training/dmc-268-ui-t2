@@ -60,7 +60,7 @@ export function OAuthCallbackPage() {
   }, [code, error, navigate, queryClient, state])
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 pb-16">
       <p className="text-sm text-muted-foreground">Signing you in…</p>
     </main>
   )

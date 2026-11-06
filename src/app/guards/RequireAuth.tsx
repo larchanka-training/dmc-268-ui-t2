@@ -9,7 +9,7 @@ export function RequireAuth({ children }: PropsWithChildren) {
 
   if (meQuery.isPending || (meQuery.isFetching && !meQuery.data && !meQuery.isError)) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 pb-16">
         <p className="text-sm text-muted-foreground">Loading session…</p>
       </main>
     )
@@ -24,7 +24,7 @@ export function RequireAuth({ children }: PropsWithChildren) {
 
   if (!meQuery.data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 pb-16">
         <p className="text-sm text-muted-foreground">Loading session…</p>
       </main>
     )
