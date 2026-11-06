@@ -1,6 +1,10 @@
 import { parseDiff, type DiffFile, type DiffWire } from '@/entities/diff'
 import { parseFinding, type FindingPageWire, type ReviewComment } from '@/entities/review-comment'
-import { ReviewNotFoundError, type PullRequestDataSource } from '@/entities/pull-request/api/data-source'
+import {
+  DiffExpiredError,
+  ReviewNotFoundError,
+  type PullRequestDataSource,
+} from '@/entities/pull-request/api/data-source'
 import {
   repositoryPullRequestsPath,
   reviewDiffPath,
@@ -86,8 +90,11 @@ export class ApiPullRequestDataSource implements PullRequestDataSource {
 
   async getDiff(reviewId: string): Promise<DiffFile[] | null> {
     const response = await apiFetch(reviewDiffPath(reviewId))
-    if (response.status === 404 || response.status === 410) {
+    if (response.status === 404) {
       return null
+    }
+    if (response.status === 410) {
+      throw new DiffExpiredError()
     }
     if (!response.ok) {
       throw new ReviewHttpError(response.status)

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import type { DiffFile } from '@/entities/diff'
 import {
+  DiffExpiredError,
   PullRequestHttpError,
   ReviewNotFoundError,
   isReviewSettled,
@@ -40,7 +41,7 @@ import {
 } from '@/widgets/diff-viewer'
 import { useHashTarget, type JumpState } from '@/pages/pull-request/model/useHashTarget'
 import { useViewMode } from '@/pages/pull-request/model/useViewMode'
-import { DiffPending, EmptyDiff, PageError, PageLoading } from '@/pages/pull-request/ui/PageStates'
+import { DiffExpired, DiffPending, EmptyDiff, PageError, PageLoading } from '@/pages/pull-request/ui/PageStates'
 import { ReviewNotFound } from '@/pages/pull-request/ui/ReviewNotFound'
 
 const NO_COMMENTS: never[] = []
@@ -85,7 +86,8 @@ export function PullRequestPage() {
   const isFiltered = hasActiveFindingFilters(filters)
   const allComments = commentsQuery.data ?? NO_COMMENTS
   const comments = useMemo(() => filterFindings(allComments, filters), [allComments, filters])
-  const allFiles = diffQuery.data ?? NO_FILES
+  const diffExpired = diffQuery.error instanceof DiffExpiredError
+  const allFiles = diffExpired ? NO_FILES : (diffQuery.data ?? NO_FILES)
   const anchored = useMemo(() => anchorComments(allFiles, comments), [allFiles, comments])
   // С фильтрами показываем только файлы, где остались замечания
   const files = useMemo(
@@ -96,14 +98,15 @@ export function PullRequestPage() {
   const firstBySeverity = useMemo(() => firstCommentIdBySeverity(files, anchored), [files, anchored])
   const fileOfComment = useMemo(() => fileOfComments(files, anchored), [files, anchored])
 
-  const queries = [reviewQuery, diffQuery, commentsQuery]
+  const queries = [reviewQuery, commentsQuery]
   // PR — необязательная часть шапки: закрытый PR или сбой GitHub не ломают страницу
-  const isReady = queries.every((query) => query.isSuccess) && !prQuery.isPending
+  const isReady =
+    queries.every((query) => query.isSuccess) && (diffQuery.isSuccess || diffExpired) && !prQuery.isPending
   useHashTarget({ ready: isReady, fileOfComment })
 
   if (reviewQuery.error instanceof ReviewNotFoundError) return <ReviewNotFound reviewId={reviewId} />
-  // Ошибка фонового обновления (опрос, смена статуса) не прячет уже загруженную страницу
-  if (queries.some((query) => query.isLoadingError)) return <PageError />
+  // Ошибки diff, в том числе при обновлении, показываем явно; ожидаемый 410 сохраняет результаты.
+  if (queries.some((query) => query.isLoadingError) || (diffQuery.isError && !diffExpired)) return <PageError />
   if (!isReady || !reviewQuery.data) return <PageLoading />
 
   const selectSeverity = (severity: Severity) => {
@@ -240,7 +243,7 @@ export function PullRequestPage() {
         </div>
       ) : allFiles.length === 0 ? (
         <>
-          {diffQuery.data === null ? <DiffPending /> : <EmptyDiff />}
+          {diffExpired ? <DiffExpired /> : diffQuery.data === null ? <DiffPending /> : <EmptyDiff />}
           <DiffViewer files={[]} anchored={anchored} viewMode={viewMode} />
         </>
       ) : (
