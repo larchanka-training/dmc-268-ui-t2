@@ -2,6 +2,14 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect } from 'react'
 import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { fetchRepositorySettings, fetchRepositoryRulesPreview, SettingsHttpError } from './settings-client'
+import { NonRetryableError } from '@/shared/lib/non-retryable-error'
+
+const retrySettingsRead = (failures: number, error: Error) =>
+  failures < 1 && (error instanceof SettingsHttpError ? error.retryable : !(error instanceof NonRetryableError))
+const settingsRetryDelay = (_attempt: number, error: Error) =>
+  error instanceof SettingsHttpError && error.retryAfter !== null && Number.isFinite(error.retryAfter)
+    ? Math.max(0, error.retryAfter) * 1000
+    : 1000
 
 async function recheckSession(
   client: QueryClient,
@@ -29,6 +37,8 @@ export function useRepositorySettings(repositoryId: string) {
   return useQuery({
     queryKey: repositorySettingsKey(userId, repositoryId),
     gcTime: 0,
+    retry: retrySettingsRead,
+    retryDelay: settingsRetryDelay,
     queryFn: async ({ signal }) => {
       try {
         return await fetchRepositorySettings(repositoryId, signal)
@@ -47,6 +57,8 @@ export function useRepositoryRulesPreview(repositoryId: string) {
   const query = useQuery({
     queryKey: ['repository-settings', userId, repositoryId, 'preview'],
     gcTime: 0,
+    retry: retrySettingsRead,
+    retryDelay: settingsRetryDelay,
     queryFn: async ({ signal }) => {
       try {
         return await fetchRepositoryRulesPreview(repositoryId, signal)

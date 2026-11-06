@@ -39,13 +39,14 @@ export function SettingsEditor({
   const [automatic, setAutomatic] = useState(initial.settings.auto_review_enabled)
   const [branches, setBranches] = useState(initial.settings.base_branches.join('\n'))
   const [severity, setSeverity] = useState(initial.settings.minimum_severity)
+  const branchNames = branches
+    .split('\n')
+    .map((branch) => branch.trim())
+    .filter(Boolean)
   const dirty =
     automatic !== baseline.settings.auto_review_enabled ||
     severity !== baseline.settings.minimum_severity ||
-    branches
-      .split('\n')
-      .filter((branch) => branch !== '')
-      .join('\n') !== baseline.settings.base_branches.join('\n')
+    branchNames.join('\n') !== baseline.settings.base_branches.join('\n')
   const mutation = useMutation({
     retry: false,
     mutationFn: () =>
@@ -54,7 +55,7 @@ export function SettingsEditor({
         baseline,
         {
           auto_review_enabled: automatic,
-          base_branches: branches.split('\n').filter((branch) => branch !== ''),
+          base_branches: branchNames,
           minimum_severity: severity,
         },
         me!.csrfToken,
@@ -109,7 +110,7 @@ export function SettingsEditor({
       className="grid max-w-xl gap-4"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!mutation.isPending) mutation.mutate()
+        if (dirty && !mutation.isPending && !reloading.isPending) mutation.mutate()
       }}
     >
       <h2 className="text-lg font-semibold">Review preferences</h2>
@@ -157,7 +158,7 @@ export function SettingsEditor({
         <p id="publication-severity-help" className="text-sm text-muted-foreground">
           Controls published comments. All saved findings remain in review history.
         </p>
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button type="submit" disabled={!dirty || mutation.isPending}>
           {mutation.isPending ? 'Saving preferences…' : 'Save preferences'}
         </Button>
       </fieldset>

@@ -41,7 +41,7 @@ export async function fetchRepositorySettings(repositoryId: string, signal?: Abo
 async function settingsResponse(response: Response): Promise<SettingsSnapshot> {
   if (!response.ok) throw await httpError(response)
   const etag = response.headers.get('ETag')
-  if (!etag) throw new Error('Settings response is incomplete')
+  if (!etag) throw new NonRetryableError('Settings response is incomplete')
   const value: unknown = await response.json()
   if (
     !isRecord(value) ||
@@ -63,7 +63,7 @@ async function settingsResponse(response: Response): Promise<SettingsSnapshot> {
     typeof value.minimum_severity !== 'string' ||
     !['critical', 'high', 'medium', 'low'].includes(value.minimum_severity)
   ) {
-    throw new Error('Settings response is incomplete')
+    throw new NonRetryableError('Settings response is incomplete')
   }
   return { settings: value as unknown as RepositorySettings, etag }
 }

@@ -1,5 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { fetchRepositorySettings, replaceRepositorySettings } from './settings-client'
+import { QueryClient } from '@tanstack/react-query'
+import { queryClient } from '@/shared/config/query-client'
+import { NonRetryableError } from '@/shared/lib/non-retryable-error'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -34,6 +37,24 @@ test('refuses a settings response without its ETag rather than constructing a re
     vi.fn(async () => Response.json(settings)),
   )
   await expect(fetchRepositorySettings('one')).rejects.toThrow('Settings response is incomplete')
+})
+
+test('an incomplete settings document is not retried by the application query policy', async () => {
+  const fetch = vi.fn(async () => Response.json(settings))
+  vi.stubGlobal('fetch', fetch)
+  const client = new QueryClient({ defaultOptions: queryClient.getDefaultOptions() })
+  try {
+    await expect(
+      client.fetchQuery({
+        queryKey: ['incomplete-settings'],
+        queryFn: () => fetchRepositorySettings('one'),
+        retryDelay: 0,
+      }),
+    ).rejects.toBeInstanceOf(NonRetryableError)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  } finally {
+    client.clear()
+  }
 })
 
 test('preserves a legacy refusal and opaque recovery ETag without treating error JSON as settings', async () => {

@@ -1,4 +1,4 @@
-import { act, screen, within, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, within, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { renderWithRouter } from '@/test/render-with-router'
 import { meQueryKey } from '@/entities/session'
@@ -112,14 +112,75 @@ test('keeps a pending replacement visibly saving and prevents duplicate submissi
     }),
   )
   const { user } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   const save = await screen.findByRole('button', { name: 'Save preferences' })
   await user.click(save)
   expect(save).toBeDisabled()
   expect(screen.getByRole('status')).toHaveTextContent('Saving preferences')
   await user.click(save)
   expect(writes).toBe(1)
-  complete(Response.json(settings, { headers: { ETag: '"B"' } }))
+  complete(Response.json({ ...settings, auto_review_enabled: true }, { headers: { ETag: '"B"' } }))
   await screen.findByRole('status', { name: 'Settings saved' })
+})
+
+test('pasted branch lines save exact names without surrounding whitespace or empty lines', async () => {
+  let savedBranches: string[] | undefined
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        savedBranches = JSON.parse(String(init.body)).base_branches
+        return Response.json(
+          { ...settings, base_branches: savedBranches, version: 'version-b' },
+          { headers: { ETag: '"B"' } },
+        )
+      }
+      return readResponse(input)
+    }),
+  )
+  const { user } = renderWithRouter('/repos/one/settings')
+  const branches = await screen.findByLabelText('Base branches')
+  await user.clear(branches)
+  await user.type(branches, ' main \n develop \n\n')
+  await user.click(screen.getByRole('button', { name: 'Save preferences' }))
+  await screen.findByRole('status', { name: 'Settings saved' })
+  expect(savedBranches).toEqual(['main', 'develop'])
+})
+
+test('unchanged preferences cannot create a new settings version', async () => {
+  const fetch = vi.fn(async (input: RequestInfo | URL) => readResponse(input))
+  vi.stubGlobal('fetch', fetch)
+  renderWithRouter('/repos/one/settings')
+  const save = await screen.findByRole('button', { name: 'Save preferences' })
+  expect(save).toBeDisabled()
+  fireEvent.submit(save.closest('form')!)
+  expect(fetch.mock.calls.some((call) => (call as unknown as [unknown, RequestInit?])[1]?.method === 'PUT')).toBe(false)
+})
+
+test('a retryable settings refusal waits for retry_after before restoring the editor', async () => {
+  vi.useFakeTimers()
+  let reads = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/settings') && ++reads === 1)
+        return Response.json({ code: 'SERVICE_UNAVAILABLE', retryable: true, retry_after: 1 }, { status: 503 })
+      return readResponse(input)
+    }),
+  )
+  try {
+    renderWithRouter('/repos/one/settings')
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+    expect(reads).toBe(1)
+    await act(async () => vi.advanceTimersByTimeAsync(999))
+    expect(reads).toBe(1)
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(reads).toBe(2)
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(screen.getByRole('checkbox', { name: 'Automatic reviews' })).toBeInTheDocument()
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 test('keeps dirty full baseline and ETag through background refresh, preserves conflict edits until explicit discard', async () => {
@@ -234,7 +295,7 @@ test('a preview provider failure is explicit and stops presenting the previously
     'fetch',
     vi.fn(async (input: RequestInfo | URL) =>
       String(input).endsWith('/rules-preview') && unavailable
-        ? Response.json({ code: 'SERVICE_UNAVAILABLE', retryable: true, retry_after: 37 }, { status: 503 })
+        ? Response.json({ code: 'SERVICE_UNAVAILABLE', retryable: false, retry_after: 37 }, { status: 503 })
         : readResponse(input),
     ),
   )
@@ -349,6 +410,7 @@ test('a replacement401 rechecks session and hides the draft behind the existing 
     }),
   )
   const { user, router } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
   expect(screen.queryByRole('checkbox', { name: 'Automatic reviews' })).not.toBeInTheDocument()
@@ -478,6 +540,7 @@ test('a late accepted PUT cannot restore cached controls after a newer read-acce
     }),
   )
   const { user, queryClient } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   denied = true
   const region = screen.getByRole('region', { name: 'Current file criteria' })
@@ -499,6 +562,7 @@ test('a PUT administrator denial retires editable settings but keeps the reader 
     ),
   )
   const { user, router } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Automatic reviews' })).not.toBeInTheDocument())
   expect(screen.getByRole('alert')).toHaveTextContent('Administrator access is required')
@@ -626,10 +690,15 @@ test('editing accepted preferences reports unsaved changes instead of leaving a 
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
-      readResponse(input, settings, init?.method === 'PUT' ? '"B"' : '"A"'),
+      readResponse(
+        input,
+        init?.method === 'PUT' ? { ...settings, ...JSON.parse(String(init.body)) } : settings,
+        init?.method === 'PUT' ? '"B"' : '"A"',
+      ),
     ),
   )
   const { user } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   await screen.findByRole('status', { name: 'Settings saved' })
   await user.click(screen.getByRole('checkbox', { name: 'Automatic reviews' }))
@@ -711,9 +780,10 @@ test('a malformed preview200 becomes an explicit preview error while the indepen
       String(input).endsWith('/rules-preview') ? Response.json({ instructions: [] }) : readResponse(input),
     ),
   )
-  renderWithRouter('/repos/one/settings')
+  const { user } = renderWithRouter('/repos/one/settings')
   expect(await screen.findByText(/Could not load file criteria/)).toBeInTheDocument()
   expect(screen.getByRole('checkbox', { name: 'Automatic reviews' })).toBeInTheDocument()
+  await user.click(screen.getByRole('checkbox', { name: 'Automatic reviews' }))
   expect(screen.getByRole('button', { name: 'Save preferences' })).toBeEnabled()
 })
 
@@ -740,6 +810,7 @@ test('an old PUT403 cannot retire a fresh authorized query and dirty draft after
     }),
   )
   const { user, router, queryClient } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   await act(async () => {
     await router.navigate('/repos/two/settings')
@@ -790,6 +861,7 @@ test('an old PUT401 cannot reset the newer valid principal session and discard i
     }),
   )
   const { user, queryClient } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   principal = 'B'
   await act(async () => {
@@ -893,6 +965,7 @@ test('an old PUT403 cannot clear a recovered editor draft on the same still-obse
     }),
   )
   const { user, queryClient } = renderWithRouter('/repos/one/settings')
+  await user.click(await screen.findByRole('checkbox', { name: 'Automatic reviews' }))
   await user.click(await screen.findByRole('button', { name: 'Save preferences' }))
   const region = screen.getByRole('region', { name: 'Current file criteria' })
   await within(region).findByText(preview.instructions[0])
