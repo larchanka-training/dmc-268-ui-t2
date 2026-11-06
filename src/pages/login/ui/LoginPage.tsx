@@ -10,7 +10,7 @@ export function LoginPage() {
 
   if (meQuery.isPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 pb-16">
         <p className="text-sm text-muted-foreground">Checking session…</p>
       </main>
     )
@@ -22,7 +22,7 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 pb-16">
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
         <div className="space-y-2">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Sign in</h1>
