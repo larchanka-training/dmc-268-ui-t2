@@ -8,13 +8,23 @@ export interface DiffViewerProps {
   files: DiffFile[]
   anchored: AnchoredComments
   viewMode: ViewMode
+  forceOpenPath?: string | null
+  /** Changes when the level, search, or file filter changes. Open gaps reset. */
+  filterKey?: string
 }
 
-export function DiffViewer({ files, anchored, viewMode }: DiffViewerProps) {
+export function DiffViewer({ files, anchored, viewMode, forceOpenPath = null, filterKey = '' }: DiffViewerProps) {
   return (
     <div className="space-y-4">
       {files.map((file) => (
-        <DiffFileSection key={file.path} file={file} anchored={anchored} viewMode={viewMode} />
+        <DiffFileSection
+          key={file.path}
+          file={file}
+          anchored={anchored}
+          viewMode={viewMode}
+          forceOpen={file.path === forceOpenPath}
+          filterKey={filterKey}
+        />
       ))}
       {anchored.orphans.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border">

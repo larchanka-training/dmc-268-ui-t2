@@ -10,9 +10,10 @@ function isSeverity(value: string): value is Severity {
 }
 
 export function findingFiltersFromSearchParams(params: URLSearchParams): FindingFilters {
+  const severity = params.getAll(SEVERITY_PARAM).find(isSeverity) ?? null
   return {
     path: params.get(FILE_PARAM),
-    severities: params.getAll(SEVERITY_PARAM).filter(isSeverity),
+    severity,
     query: params.get(QUERY_PARAM) ?? '',
   }
 }
@@ -26,8 +27,8 @@ export function withFindingFilters(current: URLSearchParams, filters: FindingFil
   if (filters.path !== null) {
     next.set(FILE_PARAM, filters.path)
   }
-  for (const severity of filters.severities) {
-    next.append(SEVERITY_PARAM, severity)
+  if (filters.severity !== null) {
+    next.set(SEVERITY_PARAM, filters.severity)
   }
   if (filters.query !== '') {
     next.set(QUERY_PARAM, filters.query)
