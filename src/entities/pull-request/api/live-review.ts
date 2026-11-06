@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useMeQuery } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
+import { recheckReviewSession } from '@/entities/pull-request/api/review-session'
 import { reviewDiffQueryKey, reviewFindingsQueryKey, reviewQueryKey } from '@/entities/pull-request/api/queries'
 import {
   INITIAL_POLL_TRACKER,
@@ -46,7 +47,14 @@ export function useLiveReview(reviewId: string) {
 
   const query = useQuery({
     queryKey: reviewQueryKey(reviewId, userId),
-    queryFn: () => dataSource.getReview(reviewId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await dataSource.getReview(reviewId)
+      } catch (error) {
+        await recheckReviewSession(queryClient, error, userId, signal)
+        throw error
+      }
+    },
     enabled: Boolean(userId),
     refetchInterval: (current) => {
       const review = current.state.data

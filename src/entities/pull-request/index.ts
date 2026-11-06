@@ -16,7 +16,11 @@ export {
   REVIEW_FINDINGS_ROUTE,
   REVIEW_ROUTE,
 } from '@/entities/pull-request/model/paths'
-export { ReviewNotFoundError, type PullRequestDataSource } from '@/entities/pull-request/api/data-source'
+export {
+  DiffExpiredError,
+  ReviewNotFoundError,
+  type PullRequestDataSource,
+} from '@/entities/pull-request/api/data-source'
 export { MockPullRequestDataSource } from '@/entities/pull-request/api/mock-data-source'
 export {
   ApiPullRequestDataSource,
