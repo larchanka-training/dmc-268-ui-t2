@@ -1,15 +1,22 @@
-import { useEffect, useMemo } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import type { DiffFile } from '@/entities/diff'
 import {
   DiffExpiredError,
+  PullRequestHttpError,
   ReviewNotFoundError,
   isReviewSettled,
+  useCancelReviewMutation,
   useDiffQuery,
   useLiveReview,
   usePullRequestQuery,
   useReviewCommentsQuery,
+  useStartReviewMutation,
+  type PullRequest,
+  type ReviewStatus,
 } from '@/entities/pull-request'
+import { useMeQuery } from '@/entities/session'
 import { countBySeverity, type Severity } from '@/entities/review-comment'
 import {
   EMPTY_FINDING_FILTERS,
@@ -39,14 +46,29 @@ import { ReviewNotFound } from '@/pages/pull-request/ui/ReviewNotFound'
 
 const NO_COMMENTS: never[] = []
 const NO_FILES: DiffFile[] = []
+const CANCELLABLE_STATUSES: ReadonlySet<ReviewStatus> = new Set([
+  'QUEUED',
+  'FETCHING_DIFF',
+  'PARSING_CONTEXT',
+  'LLM_PROCESSING',
+])
+
+function isIntegrationUnhealthy(error: Error): boolean {
+  return error instanceof PullRequestHttpError && error.status === 409 && error.code === 'INTEGRATION_UNHEALTHY'
+}
 
 export function PullRequestPage() {
   const { reviewId = '' } = useParams()
   const navigate = useNavigate()
   const { search } = useLocation()
   const [viewMode, setViewMode] = useViewMode()
+  const queryClient = useQueryClient()
+  const userId = useMeQuery().data?.user.id
+  const [refreshFailed, setRefreshFailed] = useState(false)
 
   const { query: reviewQuery, transport } = useLiveReview(reviewId)
+  const cancelMutation = useCancelReviewMutation(reviewId)
+  const startMutation = useStartReviewMutation()
   const prQuery = usePullRequestQuery(reviewQuery.data)
   const diffQuery = useDiffQuery(reviewId)
   const commentsQuery = useReviewCommentsQuery(reviewId)
@@ -96,6 +118,42 @@ export function PullRequestPage() {
 
   const review = reviewQuery.data
   const analysisDone = review.status === 'COMPLETED' || review.status === 'PARTIAL'
+  const openPullRequest = prQuery.data ?? null
+  const showStop = CANCELLABLE_STATUSES.has(review.status)
+  const showRunAgain = isReviewSettled(review) && openPullRequest !== null
+
+  async function handleStop() {
+    try {
+      await cancelMutation.mutateAsync()
+    } catch (error) {
+      if (error instanceof PullRequestHttpError && error.status === 401) return
+      // Error surfaced via cancelMutation.isError below; onSettled still refetches review detail.
+    }
+  }
+
+  async function handleRunAgain() {
+    if (!openPullRequest || userId === undefined) return
+    setRefreshFailed(false)
+    const prQueryKey = ['pull-request', userId, review.repositoryId, review.pullRequestNumber] as const
+    await queryClient.refetchQueries({ queryKey: prQueryKey })
+    const freshPullRequest = queryClient.getQueryData<PullRequest | null>(prQueryKey)
+    if (queryClient.getQueryState(prQueryKey)?.status === 'error' || !freshPullRequest?.headSha) {
+      setRefreshFailed(true)
+      return
+    }
+    try {
+      const nextReviewId = await startMutation.mutateAsync({
+        repositoryId: review.repositoryId,
+        number: review.pullRequestNumber,
+        headSha: freshPullRequest.headSha,
+        rerun_of: review.id,
+      })
+      navigate(`/reviews/${encodeURIComponent(nextReviewId)}`)
+    } catch (error) {
+      if (error instanceof PullRequestHttpError && error.status === 401) return
+      // Error surfaced via startMutation.isError below
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
@@ -106,7 +164,64 @@ export function PullRequestPage() {
         onSelectSeverity={selectSeverity}
       />
 
-      <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
+        </div>
+        {showStop || showRunAgain ? (
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <div className="flex gap-2">
+              {showStop ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={cancelMutation.isPending}
+                  onClick={() => void handleStop()}
+                >
+                  Stop
+                </Button>
+              ) : null}
+              {showRunAgain ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={startMutation.isPending}
+                  onClick={() => void handleRunAgain()}
+                >
+                  Run again
+                </Button>
+              ) : null}
+            </div>
+            {refreshFailed ? (
+              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
+                Could not start review. Try again.
+              </p>
+            ) : null}
+            {cancelMutation.isError ? (
+              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
+                Could not stop review. Try again.
+              </p>
+            ) : null}
+            {startMutation.isError ? (
+              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
+                {isIntegrationUnhealthy(startMutation.error) ? (
+                  <>
+                    This repository integration is unhealthy, so new reviews are blocked. An admin can use Check access
+                    on the{' '}
+                    <Link to="/repos" className="underline underline-offset-2">
+                      Repositories
+                    </Link>{' '}
+                    page, then try again.
+                  </>
+                ) : (
+                  'Could not start review. Try again.'
+                )}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {allComments.length > 0 ? (
         <FindingFiltersPanel

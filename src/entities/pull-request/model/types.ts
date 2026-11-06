@@ -19,6 +19,7 @@ export type ReviewReasonCode =
   | 'LLM_UNAVAILABLE'
   | 'LLM_OUTPUT_INVALID'
   | 'ANALYSIS_DEADLINE_EXCEEDED'
+  | 'USER_CANCELLED'
 
 /** Открытый PR у провайдера (OpenAPI `PullRequest`). */
 export interface PullRequest {
