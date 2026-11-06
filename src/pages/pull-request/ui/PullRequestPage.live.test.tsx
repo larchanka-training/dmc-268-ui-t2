@@ -31,6 +31,83 @@ describe('PullRequestPage: review progress', () => {
     expect(stage(progress, 'Публикация')).not.toHaveTextContent('ошибка')
   })
 
+  it('shows skipped files that share one reason on one line', async () => {
+    const progress = await renderReview({
+      status: 'PARTIAL',
+      publicationStatus: 'PENDING',
+      coverage: {
+        included: [],
+        skipped: [
+          { path: 'docs/a.md', ranges: [], reason: 'file_limit' },
+          { path: 'docs/b.md', ranges: [], reason: 'file_limit' },
+        ],
+        context_quality: 'full',
+      },
+    })
+
+    expect(within(progress).getByTestId('review-skipped-note')).toHaveTextContent('Не вошло в анализ')
+    const groups = within(progress).getAllByTestId('review-skipped-group')
+    expect(groups).toHaveLength(1)
+    const text = groups[0].textContent ?? ''
+    expect(text.indexOf('docs/a.md')).toBeGreaterThanOrEqual(0)
+    expect(text.indexOf('docs/a.md')).toBeLessThan(text.indexOf('лимит файлов'))
+    expect(groups[0]).toHaveTextContent('docs/b.md')
+    expect(groups[0]).not.toHaveTextContent('не вошло из-за')
+  })
+
+  it('shows one line per skipped reason', async () => {
+    const progress = await renderReview({
+      status: 'PARTIAL',
+      coverage: {
+        included: [],
+        skipped: [
+          { path: 'docs/a.md', ranges: [], reason: 'file_limit' },
+          { path: 'src/big.ts', ranges: [], reason: 'line_limit' },
+        ],
+        context_quality: 'degraded',
+      },
+    })
+
+    const groups = within(progress).getAllByTestId('review-skipped-group')
+    expect(groups).toHaveLength(2)
+    expect(groups[0]).toHaveTextContent('docs/a.md')
+    expect(groups[0]).toHaveTextContent('лимит файлов')
+    expect(groups[1]).toHaveTextContent('src/big.ts')
+    expect(groups[1]).toHaveTextContent('лимит строк')
+    expect(progress).not.toHaveTextContent('degraded')
+  })
+
+  it('adds no skipped note when coverage is missing', async () => {
+    const progress = await renderReview({ coverage: null })
+    expect(within(progress).queryByTestId('review-skipped-note')).not.toBeInTheDocument()
+  })
+
+  it('adds no skipped note when nothing was skipped', async () => {
+    const progress = await renderReview({
+      coverage: { included: [], skipped: [], context_quality: 'full' },
+    })
+    expect(within(progress).queryByTestId('review-skipped-note')).not.toBeInTheDocument()
+  })
+
+  it('keeps the failure reason next to skipped files', async () => {
+    const progress = await renderReview({
+      status: 'FAILED',
+      publicationStatus: 'NOT_READY',
+      error: { reasonCode: 'LLM_TIMEOUT', retryable: false, retryAt: null },
+      coverage: {
+        included: [],
+        skipped: [{ path: 'docs/a.md', ranges: [], reason: 'token_budget' }],
+        context_quality: 'diff_only',
+      },
+    })
+
+    const skipped = within(progress).getByTestId('review-skipped-group')
+    expect(skipped).toHaveTextContent('docs/a.md')
+    expect(skipped).toHaveTextContent('лимит токенов')
+    expect(skipped.textContent?.indexOf('docs/a.md')).toBeLessThan(skipped.textContent?.indexOf('лимит токенов') ?? -1)
+    expect(within(progress).getByTestId('review-error-reason')).toHaveTextContent('Причина: модель не ответила вовремя')
+  })
+
   it('shows why a review failed', async () => {
     await renderReview({
       status: 'FAILED',

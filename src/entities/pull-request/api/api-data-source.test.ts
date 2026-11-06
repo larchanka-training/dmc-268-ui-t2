@@ -60,6 +60,7 @@ describe('ApiPullRequestDataSource', () => {
       createdAt: '2026-10-01T10:00:00Z',
       startedAt: '2026-10-01T10:01:00Z',
       finishedAt: '2026-10-01T10:05:00Z',
+      coverage: null,
       error: null,
     })
   })
