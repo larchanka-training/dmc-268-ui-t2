@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useRepositoryPullRequestsQuery } from '@/entities/pull-request'
 import { StartReviewButton } from '@/features/start-review'
 import { Button } from '@/shared/ui/button'
+import { EmptyState } from '@/shared/ui/EmptyState'
 
 export function RepositoryPullRequestsPage() {
   const { repositoryId = '' } = useParams()
@@ -10,7 +11,7 @@ export function RepositoryPullRequestsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Open pull requests</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Open pull requests</h1>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link to={`/repos/${encodeURIComponent(repositoryId)}/settings`}>Rules &amp; settings</Link>
@@ -28,7 +29,7 @@ export function RepositoryPullRequestsPage() {
           Could not load pull requests.
         </p>
       ) : pullRequestsQuery.data.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No open pull requests.</p>
+        <EmptyState title="No open pull requests." />
       ) : (
         <ul className="divide-y divide-border border-y border-border">
           {pullRequestsQuery.data.map((pr) => (

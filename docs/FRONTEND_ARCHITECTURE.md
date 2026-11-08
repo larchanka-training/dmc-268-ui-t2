@@ -299,3 +299,32 @@ interface DiffViewerProps {
 - Подсветка синтаксиса самого кода не реализована — строки диффа выводятся как plain text с фоном по типу строки (add/del/context); есть только «diff-подсветка», не token-level syntax highlighting.
 - `CommentComposer` не имеет реальной мутации — отправка комментария только закрывает композер, без добавления в `entities/comment`.
 - Визуальная проверка в браузере не проводилась (нет инструмента для рендера/скриншота в этой сессии) — корректность вёрстки стоит проверить вручную через `npm run dev`.
+
+---
+
+## 6. Краевые состояния и полировка интерфейса (спринт 5, issue #40)
+
+Общая реализация для инженеров 1 и 2 — **`shared/ui/BlockErrorBoundary`**: локализует падение любого блока
+(график аналитики, будущий Rule Playground из issue #32 и т.д.) вместо белого экрана. Оборачивать блок целиком:
+
+```tsx
+<BlockErrorBoundary>
+  <Playground />
+</BlockErrorBoundary>
+```
+
+Упавший блок заменяется заглушкой «Не удалось загрузить этот блок, обновите страницу» с кнопкой обновления
+(`window.location.reload()`); соседние блоки и страница продолжают работать (AC из issue #40, TC-FE-STATE-01).
+Сейчас boundary обёрнут вокруг секции графика аналитики (`pages/analytics`, `FindingsSection`).
+
+| Средство | Слой | Назначение |
+| --- | --- | --- |
+| `BlockErrorBoundary` | `shared/ui` | Изоляция падений блоков (см. выше) — единственная общая реализация |
+| `EmptyState` | `shared/ui` | Единый вид пустых состояний (repos, PR-список, connect, audit, analytics) |
+| `RouteNotFound` / `RouteError` | `pages/not-found` | Понятные экраны 404 и 500 (последний — с кнопкой «Обновить страницу») |
+| `ConnectionBanner` | `widgets/app-shell` | Баннер потери соединения (события `online`/`offline`) |
+| `ThemeToggle` | `shared/ui` | Переключатель light / dark / system; `data-theme` на `<html>`, выбор в `localStorage` (TC-FE-THEME-01) |
+| `OnboardingPage` (`/onboarding`) | `pages/onboarding` | Wizard первого входа из 3 шагов: подключение репозитория → webhook → `.review/rules.md` |
+
+Заголовки страниц выровнены на `text-2xl font-semibold`; контент шагов онбординга отражает принятый
+bot-connect контракт (доступ бота Write+, webhook настраивается на стороне GitHub, API-поля не выдумываются).

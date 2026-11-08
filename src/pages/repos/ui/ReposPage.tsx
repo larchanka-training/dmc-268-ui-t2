@@ -3,6 +3,7 @@ import { CheckAccessButton } from '@/features/connect-repo'
 import { repositoryDisplayName, useConnectedRepositoriesQuery } from '@/entities/repository'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { EmptyState } from '@/shared/ui/EmptyState'
 
 export function ReposPage() {
   const reposQuery = useConnectedRepositoriesQuery()
@@ -25,7 +26,7 @@ export function ReposPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Repositories</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Repositories</h1>
         {!isEmpty ? (
           <Button asChild size="sm">
             <Link to="/repos/connect">Connect repository</Link>
@@ -34,14 +35,14 @@ export function ReposPage() {
       </div>
 
       {isEmpty ? (
-        <div className="space-y-3 py-8">
-          <p className="text-sm text-muted-foreground">
-            No repositories connected yet. Connect one to start reviewing changes.
-          </p>
+        <EmptyState title="No repositories connected yet" description="Connect one to start reviewing changes.">
           <Button asChild>
             <Link to="/repos/connect">Connect repository</Link>
           </Button>
-        </div>
+          <Button asChild variant="outline">
+            <Link to="/onboarding">Пройти онбординг</Link>
+          </Button>
+        </EmptyState>
       ) : (
         <ul className="divide-y divide-border border-y border-border">
           {repos.map((repo) => (

@@ -3,6 +3,7 @@ import { AuthenticatedShell } from '@/app/guards/AuthenticatedShell'
 import { RootRedirect } from '@/app/guards/RootRedirect'
 import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
+import { OnboardingPage } from '@/pages/onboarding'
 import { RouteError, RouteNotFound } from '@/pages/not-found'
 import { RepositoryPullRequestsPage } from '@/pages/repo-pull-requests'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
@@ -24,6 +25,7 @@ export const appRoutes: RouteObject[] = [
     element: <AuthenticatedShell />,
     children: [
       { path: '/repos', element: <ReposPage /> },
+      { path: '/onboarding', element: <OnboardingPage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/audit', element: <AuditPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },
