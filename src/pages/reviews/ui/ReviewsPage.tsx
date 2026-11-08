@@ -2,12 +2,17 @@ import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-qu
 import { Link } from 'react-router-dom'
 import { repositoryDisplayName, useConnectedRepositoriesQuery, type Repository } from '@/entities/repository'
 import { type AuditReview } from '@/entities/repository-insights'
-import { meQueryKey, useMeQuery } from '@/entities/session'
+import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { PUBLICATION_LABEL, STATUS_LABEL } from '@/widgets/pr-header/model/labels'
 import type { PublicationStatus, ReviewStatus } from '@/entities/pull-request'
 import { Button } from '@/shared/ui/button'
 
-async function fetchReviewWindow(repositoryId: string, client: QueryClient): Promise<AuditReview[]> {
+async function fetchReviewWindow(
+  repositoryId: string,
+  client: QueryClient,
+  actorId: string | undefined,
+  signal: AbortSignal,
+): Promise<AuditReview[]> {
   const items: AuditReview[] = []
   const requestedCursors = new Set<string>()
   let cursor: string | null = null
@@ -20,8 +25,16 @@ async function fetchReviewWindow(repositoryId: string, client: QueryClient): Pro
     if (cursor) params.set('cursor', cursor)
     const response = await fetch(`/api/v1/repositories/${encodeURIComponent(repositoryId)}/reviews?${params}`, {
       credentials: 'include',
+      signal,
     })
-    if (response.status === 401) await client.resetQueries({ queryKey: meQueryKey })
+    if (
+      response.status === 401 &&
+      !signal.aborted &&
+      actorId !== undefined &&
+      client.getQueryData<Me>(meQueryKey)?.user.id === actorId
+    ) {
+      await client.resetQueries({ queryKey: meQueryKey })
+    }
     if (!response.ok) throw new Error(`Could not load reviews (${response.status})`)
     const page = (await response.json()) as { items: AuditReview[]; next_cursor: string | null }
     items.push(...page.items)
@@ -38,7 +51,7 @@ export function ReviewsPage() {
   const reviewQueries = useQueries({
     queries: repos.map((repo) => ({
       queryKey: ['reviews-finder', userId, repo.id],
-      queryFn: () => fetchReviewWindow(repo.id, client),
+      queryFn: ({ signal }) => fetchReviewWindow(repo.id, client, userId, signal),
       enabled: Boolean(repo.id && userId),
     })),
   })
