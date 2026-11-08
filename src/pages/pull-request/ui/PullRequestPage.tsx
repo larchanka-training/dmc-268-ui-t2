@@ -184,7 +184,10 @@ export function PullRequestPage() {
 
       <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
 
-      {allComments.length > 0 ? (
+      {allComments.length === 0 && analysisDone && (
+        <p className="text-sm text-muted-foreground">AI не нашёл замечаний.</p>
+      )}
+      {(allComments.length > 0 || (analysisDone && allFiles.length > 0)) && (
         <FindingFiltersPanel
           findings={allComments}
           filePaths={reviewFilePaths(allFiles, allComments)}
@@ -208,8 +211,6 @@ export function PullRequestPage() {
             navigate({ search: `?${params.toString()}`, hash: id ? `#comment-${id}` : '' }, { state })
           }}
         />
-      ) : (
-        analysisDone && <p className="text-sm text-muted-foreground">AI не нашёл замечаний.</p>
       )}
 
       {isFiltered && diffFiles.length === 0 && anchored.orphans.length === 0 && allFiles.length > 0 ? (

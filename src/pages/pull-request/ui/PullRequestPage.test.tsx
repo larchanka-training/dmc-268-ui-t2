@@ -289,6 +289,29 @@ describe('PullRequestPage: files', () => {
     expect(router.state.location.hash).toBe('')
   })
 
+  it('keeps the file picker when AI finds no comments so the user can open a full file diff', async () => {
+    const { user } = renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({ getReviewComments: async () => [] }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+
+    expect(screen.getByText(/AI не нашёл замечаний/)).toBeInTheDocument()
+    const select = screen.getByRole('combobox', { name: /Файл/ })
+    expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '',
+      'src/api/user.ts',
+      'src/legacy/old-helper.ts',
+      'src/features/new-feature.ts',
+    ])
+
+    await user.selectOptions(select, 'src/api/user.ts')
+
+    expect(screen.getAllByTestId('file-section').map((section) => section.getAttribute('data-file-path'))).toEqual([
+      'src/api/user.ts',
+    ])
+    expect(within(fileSection('src/api/user.ts')).getByTestId('diff-table')).toBeInTheDocument()
+  })
+
   it('collapses and expands a file', async () => {
     const { user } = await renderLoaded()
     const section = fileSection('src/api/user.ts')
