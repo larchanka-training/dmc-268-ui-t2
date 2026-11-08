@@ -100,8 +100,9 @@ test('шаг webhook описывает настройку оператора, �
   expect(within(step2).getByText('Проверьте webhook')).toBeInTheDocument()
   // Один webhook на организацию настраивает оператор; секрет развёртывания пользователю не нужен.
   expect(step2).toHaveTextContent(/настраивается один раз на уровне организации/i)
-  expect(step2).toHaveTextContent(/larchanka-training/i)
   expect(step2).toHaveTextContent(/попросите оператора/i)
+  // Имя организации развёртывания не вшито в копирайт мастера.
+  expect(step2.textContent).not.toMatch(/larchanka-training/i)
   // Инструкция создать webhook с серверным секретом исчезла.
   expect(step2.textContent).not.toMatch(/Add webhook/i)
   expect(step2.textContent).not.toMatch(/WEBHOOK__SECRET/i)
