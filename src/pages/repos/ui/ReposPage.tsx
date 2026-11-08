@@ -28,9 +28,14 @@ export function ReposPage() {
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-foreground">Repositories</h1>
         {!isEmpty ? (
-          <Button asChild size="sm">
-            <Link to="/repos/connect">Connect repository</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/onboarding">Онбординг</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link to="/repos/connect">Connect repository</Link>
+            </Button>
+          </div>
         ) : null}
       </div>
 

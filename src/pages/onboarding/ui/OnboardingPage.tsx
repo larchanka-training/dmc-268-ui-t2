@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useConnectedRepositoriesQuery } from '@/entities/repository'
 import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/lib/cn'
 
@@ -15,9 +16,14 @@ const steps: WizardStep[] = [
     body: (
       <div className="space-y-3">
         <p>
-          Войдите через GitHub, откройте раздел <strong>Repos</strong> → <strong>Connect repository</strong> и выберите
-          репозиторий. Боту нужен доступ <strong>Write</strong> и выше: если доступ ещё не выдан, пригласите бота на
-          GitHub, примите приглашение под аккаунтом бота и нажмите <strong>Check access</strong> ещё раз.
+          Откройте раздел <strong>Repos</strong> → <strong>Connect repository</strong> и выберите репозиторий. Боту
+          нужен доступ <strong>Write</strong> и выше: если его ещё нет, страница подключения откроет настройки доступа
+          GitHub, где администратор репозитория приглашает бота с ролью <strong>Write</strong> или выше.
+        </p>
+        <p>
+          Приглашение принимает не администратор, а оператор бота: он входит под аккаунтом бота и подтверждает
+          приглашение. После этого нажмите <strong>Check access</strong> ещё раз; если проверка не проходит — сообщите
+          оператору.
         </p>
         <Button asChild>
           <Link to="/repos/connect">Открыть подключение репозитория</Link>
@@ -26,28 +32,26 @@ const steps: WizardStep[] = [
     ),
   },
   {
-    title: 'Настройте webhook',
+    title: 'Проверьте webhook',
     body: (
       <div className="space-y-3">
         <p>
-          На GitHub (организация или репозиторий) откройте <strong>Settings → Webhooks → Add webhook</strong> и укажите:
+          События GitHub приходят в API через webhook. По принятой схеме webhook настраивается один раз на уровне
+          организации и делает это оператор при развёртывании: он указывает Payload URL{' '}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">/api/v1/webhooks/github</code> (адрес
+          вашего развёртывания API), тип{' '}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">application/json</code>, события{' '}
+          <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">Pull requests</code> и секрет из
+          развёртывания API.
         </p>
-        <ul className="list-inside list-disc space-y-1 text-sm">
-          <li>
-            Payload URL:{' '}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">/api/v1/webhooks/github</code> (адрес
-            вашего развёртывания API)
-          </li>
-          <li>
-            Content type: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">application/json</code>
-          </li>
-          <li>Secret: значение WEBHOOK__SECRET из развёртывания API</li>
-          <li>
-            События: <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">Pull requests</code>
-          </li>
-        </ul>
+        <p>
+          Секрет развёртывания — серверная настройка: администратору репозитория он не нужен, и второй webhook создавать
+          не нужно. Если репозиторий принадлежит организации, где такой webhook уже есть (по умолчанию —{' '}
+          <strong>larchanka-training</strong>), переходите сразу к правилам.
+        </p>
         <p className="text-sm text-muted-foreground">
-          Без webhook ручной запуск ревью (Start review) работает, но автоматический приём событий — нет.
+          Если репозиторий вне такой организации, попросите оператора добавить webhook для его владельца — иначе ручной
+          запуск ревью (Start review) работает, но автоматический приём событий — нет.
         </p>
       </div>
     ),
@@ -73,6 +77,8 @@ const steps: WizardStep[] = [
 export function OnboardingPage() {
   const navigate = useNavigate()
   const [current, setCurrent] = useState(0)
+  const reposQuery = useConnectedRepositoriesQuery()
+  const hasConnectedRepos = (reposQuery.data?.length ?? 0) > 0
   const step = steps[current]
   const isFirst = current === 0
   const isLast = current === steps.length - 1
@@ -118,6 +124,17 @@ export function OnboardingPage() {
       >
         <h2 className="font-semibold text-foreground">{step.title}</h2>
         <div className="text-sm leading-relaxed text-foreground [&_p]:text-sm [&_strong]:font-medium">{step.body}</div>
+        {isFirst && hasConnectedRepos ? (
+          <div role="status" className="space-y-2 rounded-md border border-border bg-accent/40 p-3">
+            <p className="text-sm text-foreground">
+              Репозиторий уже подключён — первый шаг выполнен. Webhook на уровне организации обычно уже настроен
+              оператором, поэтому можно переходить к правилам.
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={() => setCurrent(steps.length - 1)}>
+              Перейти к правилам
+            </Button>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-2 pt-2">
           <Button type="button" variant="outline" disabled={isFirst} onClick={() => setCurrent((v) => v - 1)}>
             Назад
