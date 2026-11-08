@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import type { DiffFile } from '@/entities/diff'
 import {
@@ -65,6 +65,13 @@ export function PullRequestPage() {
   const queryClient = useQueryClient()
   const userId = useMeQuery().data?.user.id
   const [refreshFailed, setRefreshFailed] = useState(false)
+  const live = useRef(false)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
 
   const { query: reviewQuery, transport } = useLiveReview(reviewId)
   const cancelMutation = useCancelReviewMutation(reviewId)
@@ -135,9 +142,23 @@ export function PullRequestPage() {
     if (!openPullRequest || userId === undefined) return
     setRefreshFailed(false)
     const prQueryKey = ['pull-request', userId, review.repositoryId, review.pullRequestNumber] as const
-    await queryClient.refetchQueries({ queryKey: prQueryKey })
+    const previousUpdatedAt = queryClient.getQueryState(prQueryKey)?.dataUpdatedAt ?? 0
+    try {
+      await queryClient.refetchQueries({ queryKey: prQueryKey })
+    } catch {
+      if (!live.current) return
+      setRefreshFailed(true)
+      return
+    }
+    if (!live.current) return
     const freshPullRequest = queryClient.getQueryData<PullRequest | null>(prQueryKey)
-    if (queryClient.getQueryState(prQueryKey)?.status === 'error' || !freshPullRequest?.headSha) {
+    const updatedAt = queryClient.getQueryState(prQueryKey)?.dataUpdatedAt ?? 0
+    // Require a successful write after this refresh; a cancelled GET can leave stale cache data.
+    if (
+      queryClient.getQueryState(prQueryKey)?.status === 'error' ||
+      !freshPullRequest?.headSha ||
+      updatedAt <= previousUpdatedAt
+    ) {
       setRefreshFailed(true)
       return
     }
@@ -148,6 +169,7 @@ export function PullRequestPage() {
         headSha: freshPullRequest.headSha,
         rerun_of: review.id,
       })
+      if (!live.current) return
       navigate(`/reviews/${encodeURIComponent(nextReviewId)}`)
     } catch (error) {
       if (error instanceof PullRequestHttpError && error.status === 401) return

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Review, ReviewStatus } from '@/entities/pull-request'
 import { createFakeDataSource } from '@/test/fake-data-source'
@@ -228,4 +228,43 @@ it('starts Run again with the commit from a fresh pull request read', async () =
 
   await waitFor(() => expect(bodies).toHaveLength(1))
   expect(JSON.parse(bodies[0] ?? '{}')).toMatchObject({ requested_head_sha: 'fresh-sha', rerun_of: TEST_REVIEW_ID })
+})
+
+it('does not start Run again after leaving during the pull request refresh', async () => {
+  const starts: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/pull-requests/42/reviews')) starts.push(String(init?.body ?? ''))
+      return Response.json({ review_id: 'rev-new', status: 'QUEUED' }, { status: 202 })
+    }),
+  )
+  let finishRefresh!: (pr: typeof TEST_PR) => void
+  const pendingRefresh = new Promise<typeof TEST_PR>((resolve) => {
+    finishRefresh = resolve
+  })
+  let reads = 0
+  const { user, router, unmount } = renderReview({ status: 'FAILED', publicationStatus: 'NOT_READY' }, async () => {
+    reads += 1
+    if (reads === 1) return { ...TEST_PR, headSha: 'stale-sha' }
+    return pendingRefresh
+  })
+
+  await user.click(await screen.findByRole('button', { name: 'Run again' }))
+  await waitFor(() => expect(reads).toBe(2))
+
+  await act(async () => {
+    await router.navigate('/repos')
+  })
+  await waitFor(() => expect(router.state.location.pathname).toBe('/repos'))
+  unmount()
+
+  finishRefresh({ ...TEST_PR, headSha: 'fresh-sha' })
+  await act(async () => {
+    await pendingRefresh
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+  expect(starts).toEqual([])
+  expect(router.state.location.pathname).toBe('/repos')
 })
