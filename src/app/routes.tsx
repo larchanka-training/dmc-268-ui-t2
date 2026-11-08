@@ -23,6 +23,8 @@ export const appRoutes: RouteObject[] = [
   { path: '/auth/callback', element: <OAuthCallbackPage /> },
   {
     element: <AuthenticatedShell />,
+    // Падение любой страницы внутри шелла (или самого шелла) — стилизованный 500, не дефолтный стек роутера.
+    errorElement: <RouteError />,
     children: [
       { path: '/repos', element: <ReposPage /> },
       { path: '/onboarding', element: <OnboardingPage /> },

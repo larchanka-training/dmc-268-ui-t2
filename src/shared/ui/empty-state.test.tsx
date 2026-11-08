@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { EmptyState } from '@/shared/ui/EmptyState'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 describe('EmptyState', () => {
   it('показывает заголовок, описание и действие', () => {

@@ -3,7 +3,7 @@ import { CheckAccessButton } from '@/features/connect-repo'
 import { repositoryDisplayName, useConnectedRepositoriesQuery } from '@/entities/repository'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
-import { EmptyState } from '@/shared/ui/EmptyState'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 export function ReposPage() {
   const reposQuery = useConnectedRepositoriesQuery()

@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BlockErrorBoundary } from '@/shared/ui/BlockErrorBoundary'
+import { BlockErrorBoundary } from '@/shared/ui/block-error-boundary'
 
 function Bomb({ message = 'boom' }: { message?: string }): never {
   throw new Error(message)

@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogoutButton } from '@/features/logout'
 import { useMeQuery } from '@/entities/session'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
-import { ThemeToggle } from '@/shared/ui/ThemeToggle'
+import { ThemeToggle } from '@/shared/ui/theme-toggle'
 import { cn } from '@/shared/lib/cn'
 import { ConnectionBanner } from '@/widgets/app-shell/ui/ConnectionBanner'
 

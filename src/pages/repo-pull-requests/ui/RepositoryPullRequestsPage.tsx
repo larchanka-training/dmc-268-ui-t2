@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useRepositoryPullRequestsQuery } from '@/entities/pull-request'
 import { StartReviewButton } from '@/features/start-review'
 import { Button } from '@/shared/ui/button'
-import { EmptyState } from '@/shared/ui/EmptyState'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 export function RepositoryPullRequestsPage() {
   const { repositoryId = '' } = useParams()

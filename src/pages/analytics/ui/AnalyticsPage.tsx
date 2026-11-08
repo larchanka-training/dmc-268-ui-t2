@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { QuotaPanel } from './QuotaPanel'
 import { InsightsHttpError, useAnalytics, useQuotas, type Analytics } from '@/entities/repository-insights'
 import { InsightsFilters, useInsightsSelection } from '@/widgets/insights-filters'
-import { BlockErrorBoundary } from '@/shared/ui/BlockErrorBoundary'
-import { EmptyState } from '@/shared/ui/EmptyState'
+import { BlockErrorBoundary } from '@/shared/ui/block-error-boundary'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 const categories = [
   { key: 'security', label: 'Security', color: '#dc2626' },

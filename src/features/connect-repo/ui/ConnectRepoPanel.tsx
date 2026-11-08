@@ -7,7 +7,7 @@ import {
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { renderConnectError } from '@/features/connect-repo/ui/render-connect-error'
-import { EmptyState } from '@/shared/ui/EmptyState'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 export function ConnectRepoPanel() {
   const navigate = useNavigate()
