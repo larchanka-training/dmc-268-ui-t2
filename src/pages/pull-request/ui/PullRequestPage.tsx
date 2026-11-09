@@ -107,7 +107,11 @@ export function PullRequestPage() {
   const comments = useMemo(() => filterFindings(allComments, filters), [allComments, filters])
   const allFiles = diffQuery.data ?? NO_FILES
   const anchored = useMemo(() => anchorComments(allFiles, comments), [allFiles, comments])
-  const files = useMemo(() => allFiles.filter((file) => commentCountForFile(file, anchored) > 0), [allFiles, anchored])
+  // With no AI comments, still list every diff file so the user can open full-file diffs.
+  const files = useMemo(() => {
+    if (allComments.length === 0) return [...allFiles]
+    return allFiles.filter((file) => commentCountForFile(file, anchored) > 0)
+  }, [allFiles, anchored, allComments.length])
   const openedWithoutComments = useMemo(() => {
     if (filters.path === null || files.some((file) => file.path === filters.path)) return null
     return allFiles.find((file) => file.path === filters.path) ?? null
