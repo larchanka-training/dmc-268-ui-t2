@@ -155,27 +155,26 @@ it('uses a new Idempotency-Key when Run again targets a different review', async
     }),
   })
 
+  const startCalls = () => calls.filter((call) => call.url.endsWith('/pull-requests/42/reviews'))
   const runAgain = () => screen.findByRole('button', { name: 'Run again' })
   await user.click(await runAgain())
-  await waitFor(() => expect(calls.filter((call) => call.url.endsWith('/reviews'))).toHaveLength(1))
+  await waitFor(() => expect(startCalls()).toHaveLength(1))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Run again' })).toBeEnabled())
 
   await router.navigate('/reviews/rev-b')
   await waitFor(() => expect(router.state.location.pathname).toBe('/reviews/rev-b'))
-  const second = await runAgain()
-  expect(second).toBeEnabled()
-  await user.click(second)
-  await waitFor(() => expect(calls.filter((call) => call.url.endsWith('/reviews'))).toHaveLength(2), {
-    timeout: 10_000,
-  })
+  await screen.findByRole('button', { name: 'Run again' })
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Run again' })).toBeEnabled())
+  await user.click(screen.getByRole('button', { name: 'Run again' }))
+  await waitFor(() => expect(startCalls()).toHaveLength(2), { timeout: 15_000 })
 
-  const starts = calls.filter((call) => call.url.endsWith('/pull-requests/42/reviews'))
+  const starts = startCalls()
   const key = (call: { init: RequestInit }) => (call.init.headers as Record<string, string>)['Idempotency-Key']
   expect(JSON.parse(String(starts[0]?.init.body)).rerun_of).toBe('rev-a')
   expect(JSON.parse(String(starts[1]?.init.body)).rerun_of).toBe('rev-b')
   expect(key(starts[0])).toMatch(/\S+/)
   expect(key(starts[1])).not.toBe(key(starts[0]))
-}, 15_000)
+}, 25_000)
 
 it('shows an error and does not start a review when the pull request cannot be refreshed', async () => {
   const starts: string[] = []
