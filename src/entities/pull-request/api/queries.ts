@@ -38,9 +38,6 @@ export function useStartReviewMutation() {
         attempt.current = null
         return reviewId
       } catch (error) {
-        if (error instanceof PullRequestHttpError && error.status === 401) {
-          await queryClient.resetQueries({ queryKey: meQueryKey })
-        }
         // Outcome unknown (no response, 5xx, 408, 429): keep the key so a retry replays instead of duplicating.
         const uncertain =
           !(error instanceof PullRequestHttpError) ||
