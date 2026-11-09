@@ -187,7 +187,7 @@ export function PullRequestPage() {
       {allComments.length === 0 && analysisDone && (
         <p className="text-sm text-muted-foreground">AI не нашёл замечаний.</p>
       )}
-      {(allComments.length > 0 || (analysisDone && allFiles.length > 0)) && (
+      {(allComments.length > 0 || allFiles.length > 0) && (
         <FindingFiltersPanel
           findings={allComments}
           filePaths={reviewFilePaths(allFiles, allComments)}

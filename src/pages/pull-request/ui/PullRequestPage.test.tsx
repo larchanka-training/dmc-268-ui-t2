@@ -312,6 +312,38 @@ describe('PullRequestPage: files', () => {
     expect(within(fileSection('src/api/user.ts')).getByTestId('diff-table')).toBeInTheDocument()
   })
 
+  it('keeps the file picker when review FAILED with saved files and zero comments', async () => {
+    const { user } = renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getReview: async () => ({
+          ...TEST_REVIEW,
+          status: 'FAILED',
+          publicationStatus: 'SKIPPED',
+          error: { reasonCode: 'LLM_UNAVAILABLE', retryable: true, retryAt: null },
+        }),
+        getReviewComments: async () => [],
+      }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+
+    expect(screen.getByTestId('review-status')).toHaveAttribute('data-status', 'FAILED')
+    expect(screen.queryByText(/AI не нашёл замечаний/)).not.toBeInTheDocument()
+    const select = screen.getByRole('combobox', { name: /Файл/ })
+    expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '',
+      'src/api/user.ts',
+      'src/legacy/old-helper.ts',
+      'src/features/new-feature.ts',
+    ])
+
+    await user.selectOptions(select, 'src/api/user.ts')
+
+    expect(screen.getAllByTestId('file-section').map((section) => section.getAttribute('data-file-path'))).toEqual([
+      'src/api/user.ts',
+    ])
+    expect(within(fileSection('src/api/user.ts')).getByTestId('diff-table')).toBeInTheDocument()
+  })
+
   it('collapses and expands a file', async () => {
     const { user } = await renderLoaded()
     const section = fileSection('src/api/user.ts')
