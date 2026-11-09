@@ -187,9 +187,55 @@ export function PullRequestPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
-      <Link className="text-sm text-primary underline" to="/reviews">
-        Back to reviews
-      </Link>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link className="text-sm text-primary underline" to="/reviews">
+            Back to reviews
+          </Link>
+          {showStop ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={cancelMutation.isPending}
+              onClick={() => void handleStop()}
+            >
+              Stop
+            </Button>
+          ) : null}
+          {showRunAgain ? (
+            <Button type="button" size="sm" disabled={startMutation.isPending} onClick={() => void handleRunAgain()}>
+              Run again
+            </Button>
+          ) : null}
+        </div>
+        {refreshFailed ? (
+          <p className="text-xs text-destructive" role="alert">
+            Could not start review. Try again.
+          </p>
+        ) : null}
+        {cancelMutation.isError ? (
+          <p className="text-xs text-destructive" role="alert">
+            Could not stop review. Try again.
+          </p>
+        ) : null}
+        {startMutation.isError ? (
+          <p className="text-xs text-destructive" role="alert">
+            {isIntegrationUnhealthy(startMutation.error) ? (
+              <>
+                This repository integration is unhealthy, so new reviews are blocked. An admin can use Check access on
+                the{' '}
+                <Link to="/repos" className="underline underline-offset-2">
+                  Repositories
+                </Link>{' '}
+                page, then try again.
+              </>
+            ) : (
+              'Could not start review. Try again.'
+            )}
+          </p>
+        ) : null}
+      </div>
       <PullRequestHeader
         review={review}
         pullRequest={prQuery.data ?? null}
@@ -197,64 +243,7 @@ export function PullRequestPage() {
         onSelectSeverity={selectSeverity}
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div className="min-w-0 flex-1">
-          <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
-        </div>
-        {showStop || showRunAgain ? (
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <div className="flex gap-2">
-              {showStop ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={cancelMutation.isPending}
-                  onClick={() => void handleStop()}
-                >
-                  Stop
-                </Button>
-              ) : null}
-              {showRunAgain ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={startMutation.isPending}
-                  onClick={() => void handleRunAgain()}
-                >
-                  Run again
-                </Button>
-              ) : null}
-            </div>
-            {refreshFailed ? (
-              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
-                Could not start review. Try again.
-              </p>
-            ) : null}
-            {cancelMutation.isError ? (
-              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
-                Could not stop review. Try again.
-              </p>
-            ) : null}
-            {startMutation.isError ? (
-              <p className="max-w-xs text-right text-xs text-destructive" role="alert">
-                {isIntegrationUnhealthy(startMutation.error) ? (
-                  <>
-                    This repository integration is unhealthy, so new reviews are blocked. An admin can use Check access
-                    on the{' '}
-                    <Link to="/repos" className="underline underline-offset-2">
-                      Repositories
-                    </Link>{' '}
-                    page, then try again.
-                  </>
-                ) : (
-                  'Could not start review. Try again.'
-                )}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <ReviewProgress review={review} transport={transport} settled={isReviewSettled(review)} />
 
       {allComments.length > 0 ? (
         <FindingFiltersPanel

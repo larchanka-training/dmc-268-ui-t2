@@ -52,8 +52,11 @@ it('shows Stop only while a review is still running and posts cancellation', asy
   }
 
   const { user, getReview } = renderStatus('QUEUED')
+  const stop = await screen.findByRole('button', { name: 'Stop' })
+  const back = screen.getByRole('link', { name: 'Back to reviews' })
+  expect(back.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   const before = getReview.mock.calls.length
-  await user.click(await screen.findByRole('button', { name: 'Stop' }))
+  await user.click(stop)
 
   await waitFor(() => expect(getReview.mock.calls.length).toBeGreaterThan(before))
   const cancel = calls.find((call) => call.url.endsWith('/cancellation'))
@@ -112,7 +115,10 @@ it('shows Run again only for a settled review of an open pull request and sends 
   failedQuery.unmount()
 
   const { user, router } = renderReview({ status: 'FAILED', publicationStatus: 'NOT_READY' })
-  await user.click(await screen.findByRole('button', { name: 'Run again' }))
+  const runAgain = await screen.findByRole('button', { name: 'Run again' })
+  const back = screen.getByRole('link', { name: 'Back to reviews' })
+  expect(back.compareDocumentPosition(runAgain) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  await user.click(runAgain)
 
   await waitFor(() => expect(router.state.location.pathname).toBe('/reviews/rev-new'))
   const start = calls.find((call) => call.url.endsWith('/pull-requests/42/reviews'))
