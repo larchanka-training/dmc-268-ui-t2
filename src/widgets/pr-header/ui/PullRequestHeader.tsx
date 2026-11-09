@@ -1,20 +1,10 @@
 import { GitBranch } from 'lucide-react'
 import type { PublicationStatus, PullRequest, Review, ReviewStatus } from '@/entities/pull-request'
+import { PUBLICATION_LABEL, STATUS_LABEL } from '@/widgets/pr-header/model/labels'
 import type { Severity } from '@/entities/review-comment'
 import { SeveritySummary } from '@/widgets/pr-header/ui/SeveritySummary'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
 import { Badge } from '@/shared/ui/badge'
-
-const STATUS_LABEL: Record<ReviewStatus, string> = {
-  QUEUED: 'В очереди',
-  FETCHING_DIFF: 'Загрузка диффа',
-  PARSING_CONTEXT: 'Сбор контекста',
-  LLM_PROCESSING: 'Анализ моделью',
-  COMPLETED: 'Ревью завершено',
-  PARTIAL: 'Ревью частичное',
-  FAILED: 'Ревью не удалось',
-  SKIPPED: 'Ревью пропущено',
-}
 
 const STATUS_VARIANT: Record<ReviewStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'outline'> = {
   QUEUED: 'secondary',
@@ -25,16 +15,6 @@ const STATUS_VARIANT: Record<ReviewStatus, 'secondary' | 'default' | 'success' |
   PARTIAL: 'outline',
   FAILED: 'destructive',
   SKIPPED: 'secondary',
-}
-
-const PUBLICATION_LABEL: Record<PublicationStatus, string> = {
-  NOT_READY: 'Не опубликовано',
-  PENDING: 'Публикуется',
-  PUBLISHED: 'Опубликовано',
-  PARTIAL: 'Опубликовано частично',
-  FAILED: 'Публикация не удалась',
-  UNKNOWN: 'Публикация: статус неизвестен',
-  SKIPPED: 'Публикация пропущена',
 }
 
 const PUBLICATION_VARIANT: Record<PublicationStatus, 'secondary' | 'default' | 'success' | 'destructive' | 'outline'> =

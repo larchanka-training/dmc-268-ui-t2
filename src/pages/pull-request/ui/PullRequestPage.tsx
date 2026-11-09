@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
+import { Link } from 'react-router-dom'
 import type { DiffFile } from '@/entities/diff'
 import {
   DiffExpiredError,
@@ -99,6 +100,9 @@ export function PullRequestPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
+      <Link className="text-sm text-primary underline" to="/reviews">
+        Back to reviews
+      </Link>
       <PullRequestHeader
         review={review}
         pullRequest={prQuery.data ?? null}

@@ -22,7 +22,7 @@ export function AuditPage() {
   const query = useAudit(repositoryId, days, status)
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Review audit log</h1>
+      <h1 className="text-lg font-semibold text-foreground">Review audit log</h1>
       <div className="flex flex-wrap items-end gap-4">
         <InsightsFilters />
         <label className="grid gap-1 text-sm">
