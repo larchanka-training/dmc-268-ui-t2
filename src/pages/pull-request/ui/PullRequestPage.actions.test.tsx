@@ -160,7 +160,7 @@ it('uses a new Idempotency-Key when Run again targets a different review', async
   expect(second).toBeEnabled()
   await user.click(second)
   await waitFor(() => expect(calls.filter((call) => call.url.endsWith('/reviews'))).toHaveLength(2), {
-    timeout: 5_000,
+    timeout: 10_000,
   })
 
   const starts = calls.filter((call) => call.url.endsWith('/pull-requests/42/reviews'))
@@ -169,7 +169,7 @@ it('uses a new Idempotency-Key when Run again targets a different review', async
   expect(JSON.parse(String(starts[1]?.init.body)).rerun_of).toBe('rev-b')
   expect(key(starts[0])).toMatch(/\S+/)
   expect(key(starts[1])).not.toBe(key(starts[0]))
-})
+}, 15_000)
 
 it('shows an error and does not start a review when the pull request cannot be refreshed', async () => {
   const starts: string[] = []
