@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import type { DiffFile } from '@/entities/diff'
 import {
@@ -66,12 +66,16 @@ export function PullRequestPage() {
   const userId = useMeQuery().data?.user.id
   const [refreshFailed, setRefreshFailed] = useState(false)
   const live = useRef(false)
+  const active = useRef({ reviewId, userId })
   useEffect(() => {
     live.current = true
     return () => {
       live.current = false
     }
   }, [])
+  useLayoutEffect(() => {
+    active.current = { reviewId, userId }
+  }, [reviewId, userId])
 
   const { query: reviewQuery, transport } = useLiveReview(reviewId)
   const cancelMutation = useCancelReviewMutation(reviewId)
@@ -140,17 +144,21 @@ export function PullRequestPage() {
 
   async function handleRunAgain() {
     if (!openPullRequest || userId === undefined) return
+    const startedReviewId = review.id
+    const startedUserId = userId
+    const stillActive = () =>
+      live.current && active.current.reviewId === startedReviewId && active.current.userId === startedUserId
     setRefreshFailed(false)
     const prQueryKey = ['pull-request', userId, review.repositoryId, review.pullRequestNumber] as const
     const previousUpdatedAt = queryClient.getQueryState(prQueryKey)?.dataUpdatedAt ?? 0
     try {
       await queryClient.refetchQueries({ queryKey: prQueryKey })
     } catch {
-      if (!live.current) return
+      if (!stillActive()) return
       setRefreshFailed(true)
       return
     }
-    if (!live.current) return
+    if (!stillActive()) return
     const freshPullRequest = queryClient.getQueryData<PullRequest | null>(prQueryKey)
     const updatedAt = queryClient.getQueryState(prQueryKey)?.dataUpdatedAt ?? 0
     // Require a successful write after this refresh; a cancelled GET can leave stale cache data.
@@ -169,7 +177,7 @@ export function PullRequestPage() {
         headSha: freshPullRequest.headSha,
         rerun_of: review.id,
       })
-      if (!live.current) return
+      if (!stillActive()) return
       navigate(`/reviews/${encodeURIComponent(nextReviewId)}`)
     } catch (error) {
       if (error instanceof PullRequestHttpError && error.status === 401) return

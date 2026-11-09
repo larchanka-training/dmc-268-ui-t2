@@ -268,3 +268,47 @@ it('does not start Run again after leaving during the pull request refresh', asy
   expect(starts).toEqual([])
   expect(router.state.location.pathname).toBe('/repos')
 })
+
+it('does not leave review B when a delayed Run again for A completes on the same route', async () => {
+  let finishPost!: (response: Response) => void
+  const pendingPost = new Promise<Response>((resolve) => {
+    finishPost = resolve
+  })
+  let posts = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/pull-requests/42/reviews')) {
+        posts += 1
+        return pendingPost
+      }
+      return Response.json({ review_id: 'unexpected', status: 'QUEUED' }, { status: 202 })
+    }),
+  )
+
+  const { user, router } = renderWithRouter('/reviews/rev-a', {
+    dataSource: createFakeDataSource({
+      getReview: async (id) => ({ ...TEST_REVIEW, id, status: 'FAILED', publicationStatus: 'NOT_READY' }),
+      getDiff: async () => [],
+      getReviewComments: async () => [],
+    }),
+  })
+
+  await user.click(await screen.findByRole('button', { name: 'Run again' }))
+  await waitFor(() => expect(posts).toBe(1))
+
+  await act(async () => {
+    await router.navigate('/reviews/rev-b')
+  })
+  await waitFor(() => expect(router.state.location.pathname).toBe('/reviews/rev-b'))
+  await screen.findByRole('button', { name: 'Run again' })
+
+  finishPost(Response.json({ review_id: 'rev-from-a', status: 'QUEUED' }, { status: 202 }))
+  await act(async () => {
+    await pendingPost
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+
+  expect(router.state.location.pathname).toBe('/reviews/rev-b')
+})
