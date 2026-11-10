@@ -8,3 +8,4 @@ export { highlightHunk, type HunkTokens } from '@/entities/diff/lib/highlight-hu
 export { languageFromPath, tokenizeLines, type HighlightToken } from '@/entities/diff/lib/tokenize'
 export { SplitLineRow, SPLIT_COLUMNS } from '@/entities/diff/ui/SplitLineRow'
 export { UnifiedLineRow, UnifiedColGroup, UNIFIED_COLUMNS } from '@/entities/diff/ui/UnifiedLineRow'
+export { HighlightedCode } from '@/entities/diff/ui/HighlightedCode'

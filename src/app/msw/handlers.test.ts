@@ -258,3 +258,22 @@ describe('startReview handler', () => {
     expect((await listPullRequests(MOCK_REPOSITORY_ID)).status).toBe(200)
   })
 })
+
+it('mirrors the rule simulation admission contract with an honest 503 by default', async () => {
+  const response = await fetch(url(`/api/v1/repositories/${MOCK_REPOSITORY_ID}/rule-simulations`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': MSW_CSRF_TOKEN, 'Idempotency-Key': freshKey() },
+    body: JSON.stringify({
+      input: { kind: 'code', path: 'src/demo.ts', source: 'const answer = 42' },
+      rules: { format: 'rules-md/1', markdown: '# Security\n## SEC-1: Validate input\nValidate input.' },
+    }),
+  })
+  expect(response.status).toBe(503)
+  expect(await response.json()).toMatchObject({
+    code: 'SERVICE_UNAVAILABLE',
+    message: 'Service is unavailable.',
+    retryable: false,
+    retry_after: null,
+  })
+  expect(response.headers.get('X-Rule-Playground-Mock')).toBeNull()
+})

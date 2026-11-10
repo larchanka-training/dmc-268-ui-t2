@@ -107,3 +107,11 @@ test('reviewer row has no Check access', async () => {
   await screen.findByText('octocat/hello')
   expect(screen.queryByRole('button', { name: 'Check access' })).toBeNull()
 })
+
+test('opens the repository Rule Playground from its repository row', async () => {
+  stubReposApi(adminWire)
+  const { user } = renderWithRouter('/repos')
+  const row = (await screen.findByText('octocat/hello')).closest('li') as HTMLElement
+  await user.click(within(row).getByRole('link', { name: 'Rule Playground' }))
+  expect(await screen.findByRole('heading', { level: 1, name: 'Rule Playground' })).toBeInTheDocument()
+})

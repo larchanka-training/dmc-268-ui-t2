@@ -140,6 +140,8 @@
 | **TC-FE-EDG-02** | Edge | Unicode, табы, CRLF, строки \> 300 символов, `renamed` / бинарный файл | `overflow-x` работает, layout не ломается, бинарник отображается заглушкой | Component |
 | **TC-FE-A11Y-01** | A11y | axe на ReviewPage; клавиатурная навигация до кнопки «+» и композера | 0 violations уровня critical/serious; все интерактивные элементы достижимы с клавиатуры | Component + E2E |
 | **TC-FE-THEME-01** | Theme | light / dark / `prefers-color-scheme` / `data-theme` | CSS-переменные применяются; контраст diff-фонов и текста ≥ WCAG AA | Component + Visual |
+| **TC-FE-PLAYGROUND-01** | Rule Playground (Stage 1) | Маршрут /repos/:repositoryId/rule-playground, Code/Diff, rules-md/1, MSW | Переключение и сохранение черновиков, обязательные поля и лимиты, точные DTO/CSRF/cookie, loading/error/503, явно mock success/empty, diagnostics, безопасная подсветка, повторная авторизация | Component + HTTP/MSW Integration |
+| **TC-FE-PLAYGROUND-02** | Review Audit Inspector (Stage 2) | Раскрытие/закрытие, переключение замечаний, audit-поля development mock | Данные только из результата, sparse-поля без выдуманной ссылки/контекста, явная mock-маркировка, 503 очищает старый Inspector, повторный результат закрыт, inert HTML/Markdown, Enter/Space и ARIA; desktop/mobile проверяются отдельно в браузере | Component + HTTP/MSW Integration + Browser Visual |
 
 ## **6\. Требования к тестовым стендам и окружению**
 
