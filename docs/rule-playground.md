@@ -30,7 +30,7 @@ Code body:
 
 Diff replaces only `input` with `{ "kind": "diff", "unified_diff": "..." }`.
 
-The current backend admission endpoint deliberately returns **503 SERVICE_UNAVAILABLE** for a valid request. It has no success DTO. Production does not accept the development mock DTO as a real success. No automatic POST retry or success fallback is used. A 401 rechecks the existing session; generic failures and 503 preserve entered drafts. Rules diagnostics from 422 appear at the rules editor, with line numbers and truncation notice when provided. Generic 422 does not invent field coordinates.
+The current backend admission endpoint deliberately returns **503 SERVICE_UNAVAILABLE** for a valid request. Stage 10 can decode the verified local Stage 9 service result, but does not enable execution or add a public OpenAPI success contract. Production rejects the development mock DTO. No automatic POST retry or success fallback is used. A 401 rechecks the existing session; generic failures and 503 preserve entered drafts. Rules diagnostics from 422 appear at the rules editor, with line numbers and truncation notice when provided. Generic 422 does not invent field coordinates.
 
 Client validation covers required values, normalized relative Code paths, 512-byte path limit, 64-KiB/500-line Code limit, 128-KiB Diff limit and 64-KiB rules limit (UTF-8). Full rules grammar, unified-diff parsing (50 files / 2000 changed lines) and the 256-KiB encoded request-body limit remain server-authoritative. Backend access checks include personal GitHub administrator permission; merely opening the page does not grant permission.
 
@@ -60,4 +60,14 @@ Vitest / Testing Library cover the real route and repository link, switching mod
 
 Run `pnpm validate` for lint, stylelint, formatting, typecheck, all tests and production build. Permanent screenshot/E2E tooling is not configured in this repository. Stage 2 uses temporary Playwright/Chromium outside project dependencies for desktop/mobile visual inspection; results and screenshots are recorded in `.scratch/issue-32-stage2-review.md` and `.scratch/issue-32-stage2-screenshots/`.
 
-A real Inspector still requires a published backend success/audit DTO and an explicit integration change. Production continues to reject undocumented 200 responses, and the real endpoint currently returns 503. Confidence scores and verifier verdicts remain unavailable.
+## Verified local service results — Stage 10
+
+The same HTTP client and Split View now accept an exact HTTP 200 matching the local `CodeSimulationResult` / `DiffSimulationResult`. This is a frontend decoder for the existing verified service DTO, not a public execution switch: the ordinary backend still returns canonical 503 and its OpenAPI contract is unchanged. Frontend tests use deterministic MSW responses; no LLM is called.
+
+Real results contain only `findings` (at most 100) and a nonnegative safe-integer `rejected_count`. Each Code finding requires `rule_ref`, `path`, positive safe-integer `start_line` / `end_line` (inclusive, ordered), `title`, `explanation` and `evidence`; Diff additionally requires `side: 'old' | 'new'`. The decoder follows the service's relative-path and string-length constraints. Missing fields, unknown fields, invalid JSON/types/ranges, mixed DTOs and other successful HTTP statuses reject the entire response with the existing safe error. It never displays a valid subset of a malformed response.
+
+The explicit adapter maps `path` to the existing `file` view field, `start_line` to `line`, and `title` to the list message; other available text/range fields remain literal. The Inspector shows exact paths/ranges and Diff side, and the summary shows accepted/rejected counts without inventing rejected findings. Empty accepted findings show **Замечаний нет.** No severity, category, recommendation, confidence, verifier verdict or model context is created for real findings. `rule_ref` is required by the real DTO; the existing neutral missing-rule message remains available for sparse development mocks.
+
+`source: 'real' | 'mock'` is frontend state, never a request/backend field. Real requires a fully valid service DTO and no mock marker in either header or body. Mock requires development mode, the exact `X-Rule-Playground-Mock: true` header and `body.mock === true`, plus the existing mock shape. Both panel and Inspector show Mock labels only for mock results. Production accepts valid real DTOs and rejects mock successes. Every returned string uses escaped React text, including HTML/Markdown.
+
+The route/MSW tests also cover malformed success and provenance combinations, production mock refusal, stale result/Inspector removal during a new request and after errors, retained drafts, and canonical 503 without retry or mock fallback. Confidence scores and verifier verdicts remain unavailable.

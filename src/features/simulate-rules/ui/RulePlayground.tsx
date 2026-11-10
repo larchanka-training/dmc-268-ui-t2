@@ -209,7 +209,9 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
         {mutation.isSuccess && (
           <>
             <p role="status" className="text-sm text-muted-foreground">
-              Mock: демонстрационный результат, без анализа кода и LLM.
+              {mutation.data.source === 'mock'
+                ? 'Mock: демонстрационный результат, без анализа кода и LLM.'
+                : `Принято замечаний: ${mutation.data.findings.length}. Отклонено: ${mutation.data.rejected_count}.`}
             </p>
             {mutation.data.findings.length === 0 && <p>Замечаний нет.</p>}
             <ul aria-label="Замечания" className="space-y-3">
@@ -219,15 +221,18 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
                     {finding.rule && <span className="font-medium">{finding.rule}</span>}
                     {finding.severity && <Badge variant="outline">{finding.severity}</Badge>}
                   </div>
+                  {finding.side && <p className="text-sm">Сторона: {finding.side}</p>}
                   {(finding.file || finding.line) && (
                     <p className="break-all font-mono text-xs text-muted-foreground">
                       {finding.file}
                       {finding.line ? `:${finding.line}` : ''}
+                      {finding.end_line && finding.end_line !== finding.line ? `–${finding.end_line}` : ''}
                     </p>
                   )}
                   {finding.message && <p className="whitespace-pre-wrap break-words text-sm">{finding.message}</p>}
                   <ReviewAuditInspector
                     finding={finding}
+                    source={mutation.data.source}
                     open={expandedFinding === index}
                     onToggle={() => setExpandedFinding((current) => (current === index ? null : index))}
                   />
