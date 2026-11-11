@@ -107,3 +107,23 @@ test('reviewer row has no Check access', async () => {
   await screen.findByText('octocat/hello')
   expect(screen.queryByRole('button', { name: 'Check access' })).toBeNull()
 })
+
+test('non-empty list keeps a link to the onboarding wizard', async () => {
+  stubReposApi(connectedWire)
+  renderWithRouter('/repos')
+
+  await screen.findByText('octocat/hello')
+  expect(screen.getByRole('link', { name: 'Онбординг' })).toHaveAttribute('href', '/onboarding')
+})
+
+test('empty repos state offers the onboarding wizard and connect actions', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ items: [], next_cursor: null })),
+  )
+  renderWithRouter('/repos')
+
+  expect(await screen.findByText('No repositories connected yet')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Connect repository' })).toHaveAttribute('href', '/repos/connect')
+  expect(screen.getByRole('link', { name: 'Пройти онбординг' })).toHaveAttribute('href', '/onboarding')
+})

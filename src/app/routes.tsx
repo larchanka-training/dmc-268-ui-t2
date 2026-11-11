@@ -3,6 +3,7 @@ import { AuthenticatedShell } from '@/app/guards/AuthenticatedShell'
 import { RootRedirect } from '@/app/guards/RootRedirect'
 import { ConnectRepoPage } from '@/pages/connect-repo'
 import { LoginPage } from '@/pages/login'
+import { OnboardingPage } from '@/pages/onboarding'
 import { RouteError, RouteNotFound } from '@/pages/not-found'
 import { RepositoryPullRequestsPage } from '@/pages/repo-pull-requests'
 import { OAuthCallbackPage } from '@/pages/oauth-callback'
@@ -23,8 +24,11 @@ export const appRoutes: RouteObject[] = [
   { path: '/auth/callback', element: <OAuthCallbackPage /> },
   {
     element: <AuthenticatedShell />,
+    // Падение любой страницы внутри шелла (или самого шелла) — стилизованный 500, не дефолтный стек роутера.
+    errorElement: <RouteError />,
     children: [
       { path: '/repos', element: <ReposPage /> },
+      { path: '/onboarding', element: <OnboardingPage /> },
       { path: '/analytics', element: <AnalyticsPage /> },
       { path: '/audit', element: <AuditPage /> },
       { path: '/repos/connect', element: <ConnectRepoPage /> },

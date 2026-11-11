@@ -476,3 +476,26 @@ test('quota denial discards active sibling insights and late responses before le
   expect(screen.queryByText('12.5 s')).not.toBeInTheDocument()
   expect(screen.queryByText('No review runs match these filters.')).not.toBeInTheDocument()
 })
+
+test('a malformed analytics payload breaks only the chart block, not the whole page', async () => {
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+  stubFetch(async (input: RequestInfo | URL) => {
+    if (String(input).includes('/analytics'))
+      return Response.json({
+        period: { date_from: '2026-10-24', date_to: '2026-10-30', timezone: 'UTC' },
+        totals: { reviews: 4, findings: 6 },
+        findings_by_day: null,
+        average_duration_ms: 12500,
+        duration_sample_count: 3,
+      })
+    return Response.json({ items: [repository('one')], next_cursor: null })
+  })
+  renderWithRouter('/analytics?repository=one&days=7', { routes: [{ path: '/analytics', element: <AnalyticsPage /> }] })
+
+  // Заголовок и карточка статистики переживают падение секции графика.
+  expect(await screen.findByText('12.5 s')).toBeInTheDocument()
+  expect(screen.getByRole('alert')).toHaveTextContent('Не удалось загрузить этот блок, обновите страницу')
+  expect(screen.getByRole('button', { name: 'Обновить страницу' })).toBeInTheDocument()
+  expect(screen.queryByRole('img', { name: 'Daily findings by category' })).not.toBeInTheDocument()
+  consoleError.mockRestore()
+})

@@ -2,6 +2,7 @@ import { Button } from '@/shared/ui/button'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAudit } from '@/entities/repository-insights'
 import { InsightsFilters, useInsightsSelection } from '@/widgets/insights-filters'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 const limitLabels = { file_limit: 'file count', line_limit: 'line count', token_budget: 'token budget' }
 
@@ -43,7 +44,7 @@ export function AuditPage() {
       </div>
       {repositoryId && query.isPending && <p role="status">Loading review audit…</p>}
       {query.isSuccess && query.data.pages.every((page) => page.items.length === 0) && (
-        <p>No review runs match these filters.</p>
+        <EmptyState title="No review runs match these filters." />
       )}
       {query.isError && (
         <p role="alert" className="text-error-foreground">
