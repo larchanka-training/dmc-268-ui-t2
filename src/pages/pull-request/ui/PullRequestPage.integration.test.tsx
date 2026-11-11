@@ -60,6 +60,11 @@ describe('PullRequestPage with MockPullRequestDataSource (DoD)', () => {
     expect(screen.getByTestId('pr-author')).toBeInTheDocument()
     expect(screen.getByTestId('pr-branches')).toHaveTextContent('→')
     expect(screen.getByTestId('review-status')).toBeInTheDocument()
+    const skipped = screen.getByTestId('review-skipped-group')
+    expect(screen.getByTestId('review-skipped-note')).toHaveTextContent('Не вошло в анализ')
+    expect(skipped).toHaveTextContent('public/logo.png')
+    expect(skipped).toHaveTextContent('правила')
+    expect(skipped.textContent?.indexOf('public/logo.png')).toBeLessThan(skipped.textContent?.indexOf('правила') ?? -1)
     expect(screen.getAllByTestId('file-section').length).toBeGreaterThanOrEqual(4)
 
     // все замечания отрисованы ровно один раз

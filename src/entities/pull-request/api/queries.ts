@@ -1,8 +1,10 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
+import { recheckReviewSession } from '@/entities/pull-request/api/review-session'
 import {
+  cancelReview,
   fetchRepositoryPullRequests,
   PullRequestHttpError,
   startReview,
@@ -13,13 +15,20 @@ import {
 export function useStartReviewMutation() {
   const queryClient = useQueryClient()
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null)
+  const live = useRef(false)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
   return useMutation({
     mutationFn: async (input: StartReviewInput) => {
       const me = queryClient.getQueryData<Me>(meQueryKey)
       if (!me?.csrfToken) {
         throw new PullRequestHttpError(401, 'Missing CSRF token')
       }
-      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}`
+      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}|${input.rerun_of ?? ''}`
       if (attempt.current?.fingerprint !== fingerprint) {
         attempt.current = { fingerprint, key: crypto.randomUUID() }
       }
@@ -36,9 +45,54 @@ export function useStartReviewMutation() {
           error.status === 408 ||
           error.status === 429
         if (!uncertain) attempt.current = null
+        if (
+          error instanceof PullRequestHttpError &&
+          error.status === 401 &&
+          live.current &&
+          queryClient.getQueryData<Me>(meQueryKey)?.user.id === me.user.id
+        ) {
+          await queryClient.resetQueries({ queryKey: meQueryKey })
+        }
         throw error
       }
     },
+  })
+}
+
+/** Posts cancellation, then refreshes the open review. */
+export function useCancelReviewMutation(reviewId: string) {
+  const queryClient = useQueryClient()
+  const userId = useMeQuery().data?.user.id
+  const attempt = useRef<{ fingerprint: string; key: string } | null>(null)
+  return useMutation({
+    mutationFn: async () => {
+      const me = queryClient.getQueryData<Me>(meQueryKey)
+      if (!me?.csrfToken) {
+        throw new PullRequestHttpError(401, 'Missing CSRF token')
+      }
+      const fingerprint = reviewId
+      if (attempt.current?.fingerprint !== fingerprint) {
+        attempt.current = { fingerprint, key: crypto.randomUUID() }
+      }
+      const { key } = attempt.current
+      try {
+        await cancelReview(reviewId, me.csrfToken, key)
+        // Keep the key while this reviewId is mounted so repeat Stop taps replay cancellation (same as start-review uncertain outcomes).
+      } catch (error) {
+        if (error instanceof PullRequestHttpError && error.status === 401) {
+          await queryClient.resetQueries({ queryKey: meQueryKey })
+        }
+        // Outcome unknown (no response, 5xx, 408, 429): keep the key so a retry replays instead of duplicating.
+        const uncertain =
+          !(error instanceof PullRequestHttpError) ||
+          error.status >= 500 ||
+          error.status === 408 ||
+          error.status === 429
+        if (!uncertain) attempt.current = null
+        throw error
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: reviewQueryKey(reviewId, userId) }),
   })
 }
 
@@ -74,9 +128,17 @@ export const reviewFindingsQueryKey = (reviewId: string, userId: string | undefi
 export function useReviewQuery(reviewId: string) {
   const dataSource = useDataSource()
   const userId = useMeQuery().data?.user.id
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: reviewQueryKey(reviewId, userId),
-    queryFn: () => dataSource.getReview(reviewId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await dataSource.getReview(reviewId)
+      } catch (error) {
+        await recheckReviewSession(queryClient, error, userId, signal)
+        throw error
+      }
+    },
     enabled: Boolean(userId),
   })
 }
@@ -85,9 +147,17 @@ export function useReviewQuery(reviewId: string) {
 export function usePullRequestQuery(ref: { repositoryId: string; pullRequestNumber: number } | undefined) {
   const dataSource = useDataSource()
   const userId = useMeQuery().data?.user.id
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['pull-request', userId, ref?.repositoryId, ref?.pullRequestNumber],
-    queryFn: () => (ref ? dataSource.getPullRequest(ref.repositoryId, ref.pullRequestNumber) : null),
+    queryFn: async ({ signal }) => {
+      try {
+        return ref ? await dataSource.getPullRequest(ref.repositoryId, ref.pullRequestNumber) : null
+      } catch (error) {
+        await recheckReviewSession(queryClient, error, userId, signal)
+        throw error
+      }
+    },
     enabled: Boolean(userId) && ref !== undefined,
   })
 }
@@ -95,9 +165,17 @@ export function usePullRequestQuery(ref: { repositoryId: string; pullRequestNumb
 export function useDiffQuery(reviewId: string) {
   const dataSource = useDataSource()
   const userId = useMeQuery().data?.user.id
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: reviewDiffQueryKey(reviewId, userId),
-    queryFn: () => dataSource.getDiff(reviewId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await dataSource.getDiff(reviewId)
+      } catch (error) {
+        await recheckReviewSession(queryClient, error, userId, signal)
+        throw error
+      }
+    },
     enabled: Boolean(userId),
   })
 }
@@ -105,9 +183,17 @@ export function useDiffQuery(reviewId: string) {
 export function useReviewCommentsQuery(reviewId: string) {
   const dataSource = useDataSource()
   const userId = useMeQuery().data?.user.id
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: reviewFindingsQueryKey(reviewId, userId),
-    queryFn: () => dataSource.getReviewComments(reviewId),
+    queryFn: async ({ signal }) => {
+      try {
+        return await dataSource.getReviewComments(reviewId)
+      } catch (error) {
+        await recheckReviewSession(queryClient, error, userId, signal)
+        throw error
+      }
+    },
     enabled: Boolean(userId),
   })
 }

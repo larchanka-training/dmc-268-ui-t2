@@ -40,7 +40,7 @@ export function renderConnectError(error: Error, onCheckAgain: () => void, check
             )}{' '}
             and invite the bot with Write access.
           </li>
-          <li>Sign in as the bot and accept the invitation.</li>
+          <li>The bot operator accepts the invitation under the bot account — ask them if you are not the operator.</li>
           <li>Come back here and check again.</li>
         </ol>
         <Button type="button" size="sm" variant="outline" disabled={checking} onClick={onCheckAgain}>

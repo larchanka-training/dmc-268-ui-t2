@@ -20,6 +20,7 @@ import {
   type ReviewTransport,
 } from '@/entities/pull-request'
 import { cn } from '@/shared/lib/cn'
+import { Badge } from '@/shared/ui/badge'
 
 const stageLabel: Record<ReviewStageId, string> = {
   context: 'Сбор контекста',
@@ -58,6 +59,38 @@ const circleClass: Record<ReviewStageState, string> = {
   unknown: 'border-dashed border-muted-foreground bg-background text-muted-foreground',
 }
 
+type SkippedReason = NonNullable<Review['coverage']>['skipped'][number]['reason']
+
+const skippedReasonLabel: Record<SkippedReason, string> = {
+  file_limit: 'лимит файлов',
+  line_limit: 'лимит строк',
+  token_budget: 'лимит токенов',
+  policy: 'правила',
+  unsupported_language: 'язык не поддерживается',
+  unavailable_blob: 'файл недоступен',
+  provider_truncated: 'дифф обрезан',
+  context_error: 'ошибка контекста',
+}
+
+function skippedGroups(review: Review): { reason: SkippedReason; paths: string[] }[] {
+  const skipped = review.coverage?.skipped ?? []
+  const order: SkippedReason[] = []
+  const paths = new Map<SkippedReason, string[]>()
+  for (const item of skipped) {
+    const existing = paths.get(item.reason)
+    if (existing) {
+      existing.push(item.path)
+    } else {
+      order.push(item.reason)
+      paths.set(item.reason, [item.path])
+    }
+  }
+  return order.map((reason) => ({
+    reason,
+    paths: paths.get(reason) ?? [],
+  }))
+}
+
 const reasonLabel: Record<ReviewReasonCode, string> = {
   QUEUE_DEADLINE_EXCEEDED: 'ревью слишком долго ждало в очереди',
   VCS_RATE_LIMITED: 'превышен лимит запросов к GitHub',
@@ -71,6 +104,7 @@ const reasonLabel: Record<ReviewReasonCode, string> = {
   LLM_UNAVAILABLE: 'модель недоступна',
   LLM_OUTPUT_INVALID: 'модель вернула некорректный ответ',
   ANALYSIS_DEADLINE_EXCEEDED: 'анализ не уложился в отведённое время',
+  USER_CANCELLED: 'остановлено человеком',
 }
 
 function StageIcon({ state }: { state: ReviewStageState }) {
@@ -116,6 +150,7 @@ export function ReviewProgress({ review, transport, settled }: ReviewProgressPro
     publicationStatus: review.publicationStatus,
     plannedChunks: review.progress.plannedChunks,
   })
+  const skipped = skippedGroups(review)
 
   return (
     <section aria-label="Статус проверки" className="rounded-lg border border-border bg-card px-4 py-3">
@@ -184,6 +219,26 @@ export function ReviewProgress({ review, transport, settled }: ReviewProgressPro
           )
         })}
       </ol>
+
+      {skipped.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3" data-testid="review-skipped-note">
+          <p className="text-xs font-medium text-muted-foreground">Не вошло в анализ</p>
+          <ul className="mt-2 space-y-1.5">
+            {skipped.map((group) => (
+              <li
+                key={group.reason}
+                data-testid="review-skipped-group"
+                className="flex items-baseline justify-between gap-3"
+              >
+                <span className="min-w-0 font-mono text-xs">{group.paths.join(', ')}</span>
+                <Badge variant="outline" className="shrink-0">
+                  {skippedReasonLabel[group.reason]}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {review.error && (
         <p data-testid="review-error-reason" className="mt-3 text-sm text-destructive">

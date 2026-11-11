@@ -20,6 +20,8 @@ export interface RenderWithRouterOptions {
   routes?: RouteObject[]
   /** Сессия, уже лежащая в кэше `/me`; `null` — не засевать (запрос уйдёт в fetch). */
   session?: Me | null
+  /** Reuse one client across renders. Omitted calls keep a fresh client. */
+  queryClient?: QueryClient
 }
 
 /**
@@ -28,13 +30,17 @@ export interface RenderWithRouterOptions {
  */
 export function renderWithRouter(
   initialEntry = TEST_REVIEW_PATH,
-  { dataSource = createFakeDataSource(), routes = appRoutes, session = fakeMe }: RenderWithRouterOptions = {},
+  {
+    dataSource = createFakeDataSource(),
+    routes = appRoutes,
+    session = fakeMe,
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: session ? Infinity : 0 } },
+    }),
+  }: RenderWithRouterOptions = {},
 ) {
   const user = userEvent.setup()
   const router = createMemoryRouter(routes, { initialEntries: [initialEntry] })
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: session ? Infinity : 0 } },
-  })
   if (session) queryClient.setQueryData(meQueryKey, session)
 
   const utils = render(

@@ -35,3 +35,15 @@ export function EmptyDiff() {
     </p>
   )
 }
+
+export function DiffExpired() {
+  return (
+    <p
+      role="status"
+      data-testid="diff-expired"
+      className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground"
+    >
+      Срок хранения diff истёк. Сохранённые замечания доступны ниже.
+    </p>
+  )
+}
