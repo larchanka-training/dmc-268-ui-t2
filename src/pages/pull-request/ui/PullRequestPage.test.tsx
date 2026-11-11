@@ -103,6 +103,137 @@ describe('PullRequestPage: metadata', () => {
     expect(within(summary).getByRole('button', { name: /medium/i })).toHaveTextContent('1')
     expect(within(summary).getByRole('button', { name: /low/i })).toHaveTextContent('2')
   })
+
+  it('a severity badge keeps only that level and opens its first comment', async () => {
+    const { user, router } = await renderLoaded()
+
+    await user.click(within(screen.getByTestId('severity-summary')).getByRole('button', { name: /high/i }))
+
+    expect(router.state.location.hash).toBe('#comment-c2')
+    expect(new URLSearchParams(router.state.location.search).get('severity')).toBe('high')
+    expect(screen.getAllByTestId('comment-card').map((card) => card.getAttribute('data-severity'))).toEqual([
+      'high',
+      'high',
+    ])
+  })
+
+  it('Дальше opens the first comment and then the next one', async () => {
+    const { user, router } = await renderLoaded()
+
+    expect(screen.getByText('7 замечаний')).toBeInTheDocument()
+    const next = screen.getByRole('button', { name: 'Дальше' })
+    expect(screen.getByRole('button', { name: 'Назад' })).toBeDisabled()
+
+    await user.click(next)
+    expect(router.state.location.hash).toBe('#comment-c5')
+    expect(document.querySelector('[data-comment-id="c5"]')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByText('1 из 7')).toBeInTheDocument()
+
+    await user.click(next)
+    expect(router.state.location.hash).toBe('#comment-c1')
+    expect(screen.getByText('2 из 7')).toBeInTheDocument()
+  })
+
+  it('walks every card, including out-of-diff and the PR orphan, and stops at the ends', async () => {
+    const { user, router } = await renderLoaded()
+    const next = screen.getByRole('button', { name: 'Дальше' })
+    const prev = screen.getByRole('button', { name: 'Назад' })
+
+    expect(prev).toBeDisabled()
+    for (const id of ['c5', 'c1', 'c2', 'c3', 'c6', 'c4', 'c7']) {
+      await user.click(next)
+      expect(router.state.location.hash).toBe(`#comment-${id}`)
+    }
+    expect(next).toBeDisabled()
+
+    await user.click(prev)
+    expect(router.state.location.hash).toBe('#comment-c4')
+  })
+
+  it('keeps severity badges only in the header', async () => {
+    await renderLoaded()
+
+    const filters = screen.getByRole('region', { name: 'Фильтры замечаний' })
+    expect(within(filters).queryByRole('button', { name: /critical/i })).not.toBeInTheDocument()
+    expect(within(filters).queryByText(/Показано/)).not.toBeInTheDocument()
+  })
+
+  it('clicking the active severity clears it and stays on the open comment', async () => {
+    const { user, router } = await renderLoaded()
+    const high = within(screen.getByTestId('severity-summary')).getByRole('button', { name: /high/i })
+
+    await user.click(high)
+    await user.click(high)
+
+    expect(new URLSearchParams(router.state.location.search).get('severity')).toBeNull()
+    expect(router.state.location.hash).toBe('#comment-c2')
+    expect(screen.getAllByTestId('comment-card')).toHaveLength(7)
+  })
+
+  it('choosing a file opens its first comment', async () => {
+    const { user, router } = await renderLoaded()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Файл/ }), 'src/legacy/old-helper.ts')
+
+    expect(new URLSearchParams(router.state.location.search).get('file')).toBe('src/legacy/old-helper.ts')
+    expect(router.state.location.hash).toBe('#comment-c4')
+  })
+
+  it('opening a card makes it current, and closing it leaves the mark', async () => {
+    const { user, router } = await renderLoaded()
+    const card = document.querySelector('[data-comment-id="c1"]') as HTMLElement
+    const toggle = within(card).getByRole('button')
+
+    await user.click(toggle)
+
+    expect(router.state.location.hash).toBe('#comment-c1')
+    expect(card).toHaveAttribute('aria-current', 'true')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(toggle)
+
+    expect(router.state.location.hash).toBe('#comment-c1')
+    expect(card).toHaveAttribute('aria-current', 'true')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('drops the hash when search excludes the current comment', async () => {
+    const { user, router } = await renderLoaded()
+    const scroll = Element.prototype.scrollIntoView as unknown as { mock: { contexts: Element[] } }
+
+    await user.click(screen.getByRole('button', { name: 'Дальше' }))
+    expect(router.state.location.hash).toBe('#comment-c5')
+    const scrolled = scroll.mock.contexts.length
+
+    await user.type(screen.getByPlaceholderText('Поиск по тексту замечаний'), 'Unvalidated')
+
+    expect(router.state.location.hash).toBe('')
+    expect(document.querySelector('[aria-current="true"]')).toBeNull()
+    expect(scroll.mock.contexts.length).toBe(scrolled)
+
+    await user.click(screen.getByRole('button', { name: 'Дальше' }))
+    expect(router.state.location.hash).toBe('#comment-c1')
+  })
+
+  it('keeps the current comment when search still includes it', async () => {
+    const { user, router } = await renderLoaded()
+
+    await user.click(screen.getByRole('button', { name: 'Дальше' }))
+    await user.type(screen.getByPlaceholderText('Поиск по тексту замечаний'), 'Old request')
+
+    expect(router.state.location.hash).toBe('#comment-c5')
+    expect(document.querySelector('[data-comment-id="c5"]')).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('keeps a selected level clickable when its count falls to zero', async () => {
+    const { user } = await renderLoaded()
+    const low = within(screen.getByTestId('severity-summary')).getByRole('button', { name: /low/i })
+
+    await user.click(low)
+    await user.type(screen.getByPlaceholderText('Поиск по тексту замечаний'), 'Unvalidated')
+
+    expect(low).toBeEnabled()
+  })
 })
 
 describe('PullRequestPage: files', () => {
@@ -110,11 +241,7 @@ describe('PullRequestPage: files', () => {
     await renderLoaded()
 
     const items = within(screen.getByTestId('file-list')).getAllByTestId('file-list-item')
-    expect(items.map((i) => i.getAttribute('data-file-path'))).toEqual([
-      'src/api/user.ts',
-      'src/legacy/old-helper.ts',
-      'src/features/new-feature.ts',
-    ])
+    expect(items.map((i) => i.getAttribute('data-file-path'))).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts'])
 
     const stats = (item: HTMLElement) => [
       within(item).getByTestId('file-stat-add').textContent,
@@ -123,7 +250,19 @@ describe('PullRequestPage: files', () => {
     ]
     expect(stats(items[0])).toEqual(['+2', '-1', '5'])
     expect(stats(items[1])).toEqual(['+0', '-2', '1'])
-    expect(stats(items[2])).toEqual(['+2', '-0', '0'])
+  })
+
+  it('lists every diff path in the file filter, then a comment whose file is outside the diff', async () => {
+    await renderLoaded()
+
+    const select = screen.getByRole('combobox', { name: /Файл/ })
+    expect(Array.from(select.querySelectorAll('option'), (option) => option.value)).toEqual([
+      '',
+      'src/api/user.ts',
+      'src/legacy/old-helper.ts',
+      'src/features/new-feature.ts',
+      'src/missing.ts',
+    ])
   })
 
   it('renders a section per file', async () => {
@@ -132,10 +271,58 @@ describe('PullRequestPage: files', () => {
     expect(screen.getAllByTestId('file-section').map((s) => s.getAttribute('data-file-path'))).toEqual([
       'src/api/user.ts',
       'src/legacy/old-helper.ts',
-      'src/features/new-feature.ts',
     ])
     expect(fileSection('src/legacy/old-helper.ts')).toHaveAttribute('data-file-status', 'deleted')
+  })
+
+  it('shows a chosen comment-less file in the diff and keeps it out of the sidebar', async () => {
+    const { user, router } = await renderLoaded()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Файл/ }), 'src/features/new-feature.ts')
+
+    expect(screen.getAllByTestId('file-section').map((section) => section.getAttribute('data-file-path'))).toEqual([
+      'src/features/new-feature.ts',
+    ])
+    expect(within(screen.getByTestId('file-list')).queryByTestId('file-list-item')).not.toBeInTheDocument()
+    expect(within(fileSection('src/features/new-feature.ts')).getByTestId('diff-table')).toBeInTheDocument()
     expect(fileSection('src/features/new-feature.ts')).toHaveAttribute('data-file-status', 'added')
+    expect(router.state.location.hash).toBe('')
+  })
+
+  it('keeps the file picker when AI finds no comments so the user can open a full file diff', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({ getReviewComments: async () => [] }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+
+    expect(screen.getByText(/AI не нашёл замечаний/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Файлы (3)' })).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('file-list'))
+        .getAllByTestId('file-list-item')
+        .map((item) => item.getAttribute('data-file-path')),
+    ).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts', 'src/features/new-feature.ts'])
+    expect(within(fileSection('src/api/user.ts')).getByTestId('diff-table')).toBeInTheDocument()
+  })
+
+  it('keeps the file picker when review FAILED with saved files and zero comments', async () => {
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getReview: async () => ({
+          ...TEST_REVIEW,
+          status: 'FAILED',
+          publicationStatus: 'SKIPPED',
+          error: { reasonCode: 'LLM_UNAVAILABLE', retryable: true, retryAt: null },
+        }),
+        getReviewComments: async () => [],
+      }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+
+    expect(screen.getByTestId('review-status')).toHaveAttribute('data-status', 'FAILED')
+    expect(screen.queryByText(/AI не нашёл замечаний/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Файлы (3)' })).toBeInTheDocument()
+    expect(within(fileSection('src/api/user.ts')).getByTestId('diff-table')).toBeInTheDocument()
   })
 
   it('collapses and expands a file', async () => {
@@ -185,11 +372,106 @@ describe('PullRequestPage: files', () => {
 index 1..2 100644
 Binary files a/img/logo.png and b/img/logo.png differ
 `
-    renderWithRouter(TEST_REVIEW_PATH, {
+    const { user } = renderWithRouter(TEST_REVIEW_PATH, {
       dataSource: createFakeDataSource({ getDiff: async () => parseUnifiedDiff(binaryDiff) }),
     })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
 
-    expect(await screen.findByTestId('binary-placeholder')).toBeInTheDocument()
+    expect(screen.queryByTestId('binary-placeholder')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Файл/ }), 'img/logo.png')
+
+    expect(screen.getByTestId('binary-placeholder')).toBeInTheDocument()
+  })
+
+  it('folds a hunk that has no comment into one gap', async () => {
+    const diff = `diff --git a/src/api/user.ts b/src/api/user.ts
+index 1..2 100644
+--- a/src/api/user.ts
++++ b/src/api/user.ts
+@@ -1,1 +1,1 @@
+-quiet-line-marker
++quiet-line-marker
+@@ -9,1 +9,1 @@
+-kept-line-marker
++kept-line-marker
+`
+    renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getDiff: async () => parseUnifiedDiff(diff),
+        getReviewComments: async () => [
+          {
+            id: 'gap-c',
+            filePath: 'src/api/user.ts',
+            side: 'new',
+            startLine: 9,
+            line: 9,
+            severity: 'high',
+            category: 'correctness',
+            title: 'Keep this hunk',
+            explanation: '',
+            evidence: '',
+            recommendation: '',
+          },
+        ],
+      }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+
+    expect(screen.getByRole('button', { name: '2 строк без замечаний' })).toBeInTheDocument()
+    const section = fileSection('src/api/user.ts')
+    expect(section.textContent).not.toContain('quiet-line-marker')
+    expect(section.textContent).toContain('kept-line-marker')
+  })
+
+  it('opens a gap until the level changes, and whole file shows every hunk', async () => {
+    const diff = `diff --git a/src/api/user.ts b/src/api/user.ts
+index 1..2 100644
+--- a/src/api/user.ts
++++ b/src/api/user.ts
+@@ -1,1 +1,1 @@
+-quiet-line-marker
++quiet-line-marker
+@@ -9,1 +9,1 @@
+-kept-line-marker
++kept-line-marker
+`
+    const { user } = renderWithRouter(TEST_REVIEW_PATH, {
+      dataSource: createFakeDataSource({
+        getDiff: async () => parseUnifiedDiff(diff),
+        getReviewComments: async () => [
+          {
+            id: 'gap-c',
+            filePath: 'src/api/user.ts',
+            side: 'new',
+            startLine: 9,
+            line: 9,
+            severity: 'high',
+            category: 'correctness',
+            title: 'Keep this hunk',
+            explanation: '',
+            evidence: '',
+            recommendation: '',
+          },
+        ],
+      }),
+    })
+    await screen.findByRole('heading', { level: 1, name: /Add user metadata/ })
+    const section = () => fileSection('src/api/user.ts')
+
+    await user.click(screen.getByRole('button', { name: '2 строк без замечаний' }))
+    expect(section().textContent).toContain('quiet-line-marker')
+
+    await user.click(screen.getByRole('button', { name: 'Дальше' }))
+    expect(section().textContent).toContain('quiet-line-marker')
+
+    await user.click(screen.getByRole('button', { name: 'весь файл' }))
+    expect(section().textContent).toContain('quiet-line-marker')
+    expect(section().textContent).toContain('kept-line-marker')
+
+    await user.click(within(screen.getByTestId('severity-summary')).getByRole('button', { name: /high/i }))
+    expect(section().textContent).not.toContain('quiet-line-marker')
+    expect(section().textContent).toContain('kept-line-marker')
   })
 })
 

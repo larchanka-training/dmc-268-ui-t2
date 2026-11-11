@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router'
 import type { FindingCategory, ReviewComment } from '@/entities/review-comment'
 import { SEVERITY_TONE, SeverityBadge } from '@/entities/review-comment'
 import { useCommentCardStore } from '@/features/review-comment-card/model/store'
@@ -27,9 +28,12 @@ export interface CommentCardProps {
 
 /** Раскрывающаяся карточка замечания AI. Свёрнута по умолчанию. */
 export function CommentCard({ comment }: CommentCardProps) {
+  const location = useLocation()
+  const navigate = useNavigate()
   const expanded = useCommentCardStore((state) => Boolean(state.expanded[comment.id]))
   const toggle = useCommentCardStore((state) => state.toggle)
   const regionId = `comment-region-${comment.id}`
+  const current = location.hash === `#comment-${comment.id}`
 
   return (
     <article
@@ -37,14 +41,27 @@ export function CommentCard({ comment }: CommentCardProps) {
       data-testid="comment-card"
       data-comment-id={comment.id}
       data-severity={comment.severity}
-      className={cn('scroll-mt-16 rounded-md border bg-card text-card-foreground', SEVERITY_TONE[comment.severity])}
+      aria-current={current ? 'true' : undefined}
+      className={cn(
+        'scroll-mt-16 rounded-md border bg-card text-card-foreground',
+        SEVERITY_TONE[comment.severity],
+        current && 'ring-2 ring-ring',
+      )}
     >
       <h4 className="m-0 text-sm font-medium">
         <button
           type="button"
           aria-expanded={expanded}
           aria-controls={regionId}
-          onClick={() => toggle(comment.id)}
+          onClick={() => {
+            if (!expanded) {
+              navigate(
+                { pathname: location.pathname, search: location.search, hash: `#comment-${comment.id}` },
+                { state: { jump: Date.now() } },
+              )
+            }
+            toggle(comment.id)
+          }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <SeverityBadge severity={comment.severity} />

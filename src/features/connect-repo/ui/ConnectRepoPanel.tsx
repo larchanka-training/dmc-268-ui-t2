@@ -7,6 +7,7 @@ import {
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { renderConnectError } from '@/features/connect-repo/ui/render-connect-error'
+import { EmptyState } from '@/shared/ui/empty-state'
 
 export function ConnectRepoPanel() {
   const navigate = useNavigate()
@@ -39,7 +40,7 @@ export function ConnectRepoPanel() {
   return (
     <div className="space-y-4">
       {available.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No available repositories to connect.</p>
+        <EmptyState title="No available repositories to connect." />
       ) : (
         <ul className="divide-y divide-border border-y border-border">
           {available.map((repo) => (

@@ -119,6 +119,17 @@ describe('PullRequestPage: review progress', () => {
     expect(screen.getByTestId('review-error-reason')).toHaveTextContent('можно повторить позже')
   })
 
+  it('shows that a person stopped the review', async () => {
+    await renderReview({
+      status: 'FAILED',
+      publicationStatus: 'NOT_READY',
+      error: { reasonCode: 'USER_CANCELLED', retryable: false, retryAt: null },
+    })
+
+    expect(screen.getByTestId('review-error-reason')).toHaveTextContent('остановлено человеком')
+    expect(screen.getByTestId('review-error-reason')).not.toHaveTextContent('можно повторить позже')
+  })
+
   it('applies a status from the live stream and refetches diff and findings', async () => {
     let review: Review = { ...TEST_REVIEW, status: 'LLM_PROCESSING', publicationStatus: 'NOT_READY', finishedAt: null }
     let stream: ReviewStreamHandlers | undefined
@@ -166,14 +177,14 @@ describe('PullRequestPage: finding filters', () => {
   it('shows every file without filters', async () => {
     await renderReview({})
 
-    expect(shownFiles()).toHaveLength(3)
+    expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts'])
   })
 
   it('keeps only files with matching findings when filtered by severity from the URL', async () => {
     await renderReview({}, `${TEST_REVIEW_PATH}?severity=high`)
 
     await waitFor(() => expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts']))
-    expect(screen.getByTestId('severity-count-critical')).toHaveTextContent('0')
+    expect(screen.getByTestId('severity-count-critical')).toHaveTextContent('2')
     expect(screen.getByTestId('severity-count-high')).toHaveTextContent('2')
   })
 
@@ -183,6 +194,6 @@ describe('PullRequestPage: finding filters', () => {
     const reset = await screen.findByRole('button', { name: 'Сбросить фильтры' })
     reset.click()
 
-    await waitFor(() => expect(shownFiles()).toHaveLength(3))
+    await waitFor(() => expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts']))
   })
 })

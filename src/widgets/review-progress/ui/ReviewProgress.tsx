@@ -104,6 +104,7 @@ const reasonLabel: Record<ReviewReasonCode, string> = {
   LLM_UNAVAILABLE: 'модель недоступна',
   LLM_OUTPUT_INVALID: 'модель вернула некорректный ответ',
   ANALYSIS_DEADLINE_EXCEEDED: 'анализ не уложился в отведённое время',
+  USER_CANCELLED: 'остановлено человеком',
 }
 
 function StageIcon({ state }: { state: ReviewStageState }) {

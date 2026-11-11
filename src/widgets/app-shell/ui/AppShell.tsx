@@ -2,7 +2,9 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogoutButton } from '@/features/logout'
 import { useMeQuery } from '@/entities/session'
 import { Avatar, AvatarFallback } from '@/shared/ui/avatar'
+import { ThemeToggle } from '@/shared/ui/theme-toggle'
 import { cn } from '@/shared/lib/cn'
+import { ConnectionBanner } from '@/widgets/app-shell/ui/ConnectionBanner'
 
 const PRODUCT_NAME = 'Code Review'
 
@@ -23,6 +25,7 @@ export function AppShell() {
       <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
         <p className="text-sm font-semibold tracking-tight text-foreground">{PRODUCT_NAME}</p>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           {me ? (
             <div className="flex items-center gap-2">
               <Avatar className="h-7 w-7">
@@ -34,6 +37,8 @@ export function AppShell() {
           <LogoutButton />
         </div>
       </header>
+
+      <ConnectionBanner />
 
       <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
         <aside className="flex shrink-0 gap-1 overflow-x-auto whitespace-nowrap border-b border-border p-3 sm:w-48 sm:flex-col sm:border-b-0 sm:border-r">

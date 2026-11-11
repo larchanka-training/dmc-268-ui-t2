@@ -75,7 +75,9 @@ test('409 BOT_ACCESS_REQUIRED shows the bot login, an access_url link and the in
   const link = screen.getByRole('link', { name: /repository access settings/i })
   expect(link).toHaveAttribute('href', ACCESS_URL)
   expect(link).toHaveAttribute('target', '_blank')
-  expect(screen.getByText(/accept the invitation/i)).toBeInTheDocument()
+  // Приём приглашения — задача оператора бота, а не пользователя.
+  expect(screen.getByText(/the bot operator accepts the invitation/i)).toBeInTheDocument()
+  expect(screen.queryByText(/sign in as the bot/i)).toBeNull()
   expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument()
 })
 

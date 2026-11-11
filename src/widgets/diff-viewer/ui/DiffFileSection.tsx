@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronDown, FileWarning } from 'lucide-react'
 import { highlightHunk, languageFromPath, type DiffFile, type DiffFileStatus } from '@/entities/diff'
 import type { AnchoredComments } from '@/widgets/diff-viewer/model/anchor-comments'
@@ -28,12 +28,24 @@ export interface DiffFileSectionProps {
   file: DiffFile
   anchored: AnchoredComments
   viewMode: ViewMode
+  /** Chosen file with no comments: show every hunk, no gap buttons. */
+  forceOpen?: boolean
+  /** Changes when the level, search, or file filter changes. */
+  filterKey?: string
 }
 
-export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionProps) {
+export function DiffFileSection({ file, anchored, viewMode, forceOpen = false, filterKey = '' }: DiffFileSectionProps) {
   const collapsed = useCollapsedFilesStore((state) => Boolean(state.collapsed[file.path]))
   const toggle = useCollapsedFilesStore((state) => state.toggle)
   const bodyId = `file-body-${file.path}`
+  const [openGapKeys, setOpenGapKeys] = useState<ReadonlySet<string>>(() => new Set())
+  const [wholeFile, setWholeFile] = useState(false)
+  const [seenFilter, setSeenFilter] = useState(filterKey)
+  if (seenFilter !== filterKey) {
+    setSeenFilter(filterKey)
+    setOpenGapKeys(new Set())
+    setWholeFile(false)
+  }
 
   const tokens = useMemo(() => {
     const language = languageFromPath(file.path)
@@ -71,6 +83,15 @@ export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionPro
           )}
         </h2>
         <Badge variant={STATUS_VARIANT[file.status]}>{STATUS_LABEL[file.status]}</Badge>
+        {!forceOpen && !file.isBinary && file.hunks.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setWholeFile((open) => !open)}
+            className="rounded-md border border-input px-2 py-0.5 text-xs"
+          >
+            {wholeFile ? 'только замечания' : 'весь файл'}
+          </button>
+        )}
         <span className="text-xs font-medium text-diff-add-fg">+{file.additions}</span>
         <span className="text-xs font-medium text-diff-del-fg">-{file.deletions}</span>
       </header>
@@ -89,7 +110,15 @@ export function DiffFileSection({ file, anchored, viewMode }: DiffFileSectionPro
             <p className="px-3 py-4 text-sm text-muted-foreground">Содержимое файла не изменилось</p>
           ) : (
             <div className="overflow-x-auto">
-              <Diff hunks={file.hunks} tokens={tokens} byLine={anchored.byLine} rangeLines={anchored.rangeLines} />
+              <Diff
+                hunks={file.hunks}
+                tokens={tokens}
+                byLine={anchored.byLine}
+                rangeLines={anchored.rangeLines}
+                openGapKeys={openGapKeys}
+                onOpenGap={(key) => setOpenGapKeys((current) => new Set(current).add(key))}
+                forceOpen={forceOpen || wholeFile}
+              />
             </div>
           )}
           {outOfDiff.length > 0 && <OutOfDiffComments comments={outOfDiff} testId="out-of-diff-file" />}

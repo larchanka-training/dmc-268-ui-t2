@@ -4,6 +4,7 @@ import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
 import { useDataSource } from '@/entities/pull-request/api/data-source-context'
 import { recheckReviewSession } from '@/entities/pull-request/api/review-session'
 import {
+  cancelReview,
   fetchRepositoryPullRequests,
   PullRequestHttpError,
   startReview,
@@ -27,7 +28,7 @@ export function useStartReviewMutation() {
       if (!me?.csrfToken) {
         throw new PullRequestHttpError(401, 'Missing CSRF token')
       }
-      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}`
+      const fingerprint = `${input.repositoryId}|${input.number}|${input.headSha}|${input.rerun_of ?? ''}`
       if (attempt.current?.fingerprint !== fingerprint) {
         attempt.current = { fingerprint, key: crypto.randomUUID() }
       }
@@ -55,6 +56,43 @@ export function useStartReviewMutation() {
         throw error
       }
     },
+  })
+}
+
+/** Posts cancellation, then refreshes the open review. */
+export function useCancelReviewMutation(reviewId: string) {
+  const queryClient = useQueryClient()
+  const userId = useMeQuery().data?.user.id
+  const attempt = useRef<{ fingerprint: string; key: string } | null>(null)
+  return useMutation({
+    mutationFn: async () => {
+      const me = queryClient.getQueryData<Me>(meQueryKey)
+      if (!me?.csrfToken) {
+        throw new PullRequestHttpError(401, 'Missing CSRF token')
+      }
+      const fingerprint = reviewId
+      if (attempt.current?.fingerprint !== fingerprint) {
+        attempt.current = { fingerprint, key: crypto.randomUUID() }
+      }
+      const { key } = attempt.current
+      try {
+        await cancelReview(reviewId, me.csrfToken, key)
+        // Keep the key while this reviewId is mounted so repeat Stop taps replay cancellation (same as start-review uncertain outcomes).
+      } catch (error) {
+        if (error instanceof PullRequestHttpError && error.status === 401) {
+          await queryClient.resetQueries({ queryKey: meQueryKey })
+        }
+        // Outcome unknown (no response, 5xx, 408, 429): keep the key so a retry replays instead of duplicating.
+        const uncertain =
+          !(error instanceof PullRequestHttpError) ||
+          error.status >= 500 ||
+          error.status === 408 ||
+          error.status === 429
+        if (!uncertain) attempt.current = null
+        throw error
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: reviewQueryKey(reviewId, userId) }),
   })
 }
 
