@@ -33,17 +33,14 @@ test('file filter keeps only findings in the selected file', () => {
   expect(ids(filterFindings(findings, { ...EMPTY_FINDING_FILTERS, path: 'src/api/user.ts' }))).toEqual(['a', 'c'])
 })
 
-test('severity filter keeps findings of any selected severity', () => {
+test('severity filter keeps findings of the one selected level', () => {
   const findings = [
     finding('a', { severity: 'critical' }),
     finding('b', { severity: 'low' }),
     finding('c', { severity: 'high' }),
   ]
 
-  expect(ids(filterFindings(findings, { ...EMPTY_FINDING_FILTERS, severities: ['critical', 'high'] }))).toEqual([
-    'a',
-    'c',
-  ])
+  expect(ids(filterFindings(findings, { ...EMPTY_FINDING_FILTERS, severity: 'high' }))).toEqual(['c'])
 })
 
 test('text search matches title, explanation, recommendation and evidence case-insensitively', () => {
@@ -66,6 +63,6 @@ test('text search matches title, explanation, recommendation and evidence case-i
 test('hasActiveFindingFilters is false only when no filter is set', () => {
   expect(hasActiveFindingFilters(EMPTY_FINDING_FILTERS)).toBe(false)
   expect(hasActiveFindingFilters({ ...EMPTY_FINDING_FILTERS, path: 'a.ts' })).toBe(true)
-  expect(hasActiveFindingFilters({ ...EMPTY_FINDING_FILTERS, severities: ['low'] })).toBe(true)
+  expect(hasActiveFindingFilters({ ...EMPTY_FINDING_FILTERS, severity: 'low' })).toBe(true)
   expect(hasActiveFindingFilters({ ...EMPTY_FINDING_FILTERS, query: 'x' })).toBe(true)
 })

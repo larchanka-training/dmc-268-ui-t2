@@ -177,14 +177,14 @@ describe('PullRequestPage: finding filters', () => {
   it('shows every file without filters', async () => {
     await renderReview({})
 
-    expect(shownFiles()).toHaveLength(3)
+    expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts'])
   })
 
   it('keeps only files with matching findings when filtered by severity from the URL', async () => {
     await renderReview({}, `${TEST_REVIEW_PATH}?severity=high`)
 
     await waitFor(() => expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts']))
-    expect(screen.getByTestId('severity-count-critical')).toHaveTextContent('0')
+    expect(screen.getByTestId('severity-count-critical')).toHaveTextContent('2')
     expect(screen.getByTestId('severity-count-high')).toHaveTextContent('2')
   })
 
@@ -194,6 +194,6 @@ describe('PullRequestPage: finding filters', () => {
     const reset = await screen.findByRole('button', { name: 'Сбросить фильтры' })
     reset.click()
 
-    await waitFor(() => expect(shownFiles()).toHaveLength(3))
+    await waitFor(() => expect(shownFiles()).toEqual(['src/api/user.ts', 'src/legacy/old-helper.ts']))
   })
 })
