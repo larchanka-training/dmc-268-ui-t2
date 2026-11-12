@@ -94,6 +94,27 @@ it('reports an HTTP error and preserves all entered text for a manual retry', as
   expect(screen.getByRole('button', { name: 'Симулировать ревью' })).toBeEnabled()
 })
 
+it('explains HTTP 403 on a direct URL, preserving drafts without a success or automatic retry', async () => {
+  const fetch = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(Response.json({ code: 'ACCESS_DENIED', message: 'Access denied.' }, { status: 403 }))
+  const { user, router } = renderWithRouter(path)
+  await fillCode(user)
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Доступ к симуляции запрещён (HTTP 403). Для запуска необходимы права администратора репозитория. Введённый текст сохранён.',
+  )
+  expect(screen.getByLabelText('Исходный код')).toHaveValue('const answer = 42')
+  expect(screen.getByLabelText('Путь файла')).toHaveValue('src/demo.ts')
+  expect(screen.getByLabelText('.review/rules.md')).toHaveValue(ruleText)
+  expect(screen.queryByRole('list', { name: 'Замечания' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  expect(screen.queryByText('Замечаний нет.')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Симулировать ревью' })).toBeEnabled()
+  expect(router.state.location.pathname).toBe(path)
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
 it('shows the real SERVICE_UNAVAILABLE refusal without a fabricated success or automatic retry', async () => {
   const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
     Response.json(

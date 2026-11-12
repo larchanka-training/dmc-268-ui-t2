@@ -116,6 +116,19 @@ test('opens the repository Rule Playground from its repository row', async () =>
   expect(await screen.findByRole('heading', { level: 1, name: 'Rule Playground' })).toBeInTheDocument()
 })
 
+test('reviewer row hides Rule Playground while keeping its other navigation', async () => {
+  stubReposApi(connectedWire)
+  renderWithRouter('/repos')
+
+  const row = (await screen.findByText('octocat/hello')).closest('li') as HTMLElement
+  expect(within(row).queryByRole('link', { name: 'Rule Playground' })).not.toBeInTheDocument()
+  expect(within(row).getByRole('link', { name: 'Rules & settings' })).toHaveAttribute('href', '/repos/repo-1/settings')
+  expect(within(row).getByRole('link', { name: 'Pull requests' })).toHaveAttribute(
+    'href',
+    '/repos/repo-1/pull-requests',
+  )
+})
+
 test('non-empty list keeps a link to the onboarding wizard', async () => {
   stubReposApi(connectedWire)
   renderWithRouter('/repos')

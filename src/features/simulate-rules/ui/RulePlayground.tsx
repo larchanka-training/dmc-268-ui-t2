@@ -203,7 +203,9 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
           <p role="alert" className="text-sm text-destructive">
             {mutation.error instanceof SimulationHttpError && mutation.error.status === 503
               ? '503 SERVICE_UNAVAILABLE: сервис симуляции временно недоступен. Введённый текст сохранён. Попробуйте позже.'
-              : 'Не удалось выполнить симуляцию. Введённый текст сохранён. Повторите попытку.'}
+              : mutation.error instanceof SimulationHttpError && mutation.error.status === 403
+                ? 'Доступ к симуляции запрещён (HTTP 403). Для запуска необходимы права администратора репозитория. Введённый текст сохранён.'
+                : 'Не удалось выполнить симуляцию. Введённый текст сохранён. Повторите попытку.'}
           </p>
         )}
         {mutation.isSuccess && (
@@ -218,7 +220,11 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
               {mutation.data.findings.map((finding, index) => (
                 <li key={index} className="space-y-2 rounded-md border border-border p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    {finding.rule && <span className="font-medium">{finding.rule}</span>}
+                    {mutation.data.source === 'real' ? (
+                      <span className="font-medium">{finding.rule_ref}</span>
+                    ) : (
+                      finding.rule && <span className="font-medium">{finding.rule}</span>
+                    )}
                     {finding.severity && <Badge variant="outline">{finding.severity}</Badge>}
                   </div>
                   {finding.side && <p className="text-sm">Сторона: {finding.side}</p>}

@@ -122,9 +122,41 @@ it('accepts a verified real Code 200 and exposes only returned fields as safe te
 
 const realDiffFindings = [
   { ...realCodeFinding, path: 'before.py', start_line: 8, end_line: 9, side: 'old', title: 'Old finding' },
-  { ...realCodeFinding, path: 'after.py', start_line: 20, end_line: 21, side: 'new', title: 'New finding' },
+  {
+    ...realCodeFinding,
+    rule_ref: 'SEC-2',
+    path: 'after.py',
+    start_line: 20,
+    end_line: 21,
+    side: 'new',
+    title: 'New finding',
+  },
 ]
 const unifiedDiff = '--- a/before.py\n+++ b/after.py\n@@ -8,2 +20,2 @@\n-old1\n-old2\n+new1\n+new2\n'
+
+it.each(['Code', 'Diff'])('shows each real %s rule_ref in its finding before opening the Inspector', async (mode) => {
+  server.use(
+    http.post(realEndpoint, () =>
+      HttpResponse.json({ findings: mode === 'Code' ? [realCodeFinding] : realDiffFindings, rejected_count: 0 }),
+    ),
+  )
+  const user = await prepareRealCode()
+  if (mode === 'Diff') {
+    await user.click(screen.getByRole('button', { name: 'Diff' }))
+    fireEvent.change(screen.getByLabelText('Unified diff'), { target: { value: unifiedDiff } })
+  }
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  const list = await screen.findByRole('list', { name: 'Замечания' })
+  expect(screen.queryByRole('region', { name: 'Review Audit Inspector' })).not.toBeInTheDocument()
+  const findings = within(list).getAllByRole('listitem')
+  expect(findings).toHaveLength(mode === 'Code' ? 1 : 2)
+  expect(within(findings[0]).getByText('SEC-1', { exact: true })).toBeInTheDocument()
+  if (mode === 'Diff') {
+    expect(within(findings[1]).getByText('SEC-2', { exact: true })).toBeInTheDocument()
+    expect(findings[0]).not.toHaveTextContent('SEC-2')
+    expect(findings[1]).not.toHaveTextContent('SEC-1')
+  }
+})
 
 it('accepts a verified real Diff 200 and preserves exact paths, ranges and old/new sides', async () => {
   server.use(http.post(realEndpoint, () => HttpResponse.json({ findings: realDiffFindings, rejected_count: 1 })))
