@@ -6,7 +6,7 @@ The authenticated `/analytics` and `/audit` pages use the repository insights AP
 
 - Analytics aggregates are calculated by the API. The browser does not fetch every review or infer metrics from one page of results.
 - Categories remain Security, Bug (the API's `correctness`), Performance and Maintainability. Maintainability is not silently renamed Style; the present API has no Style category.
-- Dates and chart buckets are UTC. Categories can be toggled in the chart; the table always exposes all source counts, including zero values.
+- Open **How to read this chart** (Enter or Space on the keyboard) for the dates returned by the API and the meaning of a daily point. A category counts saved findings from runs created that UTC day, including repeat runs. A zero can also occur on a day without any runs. Categories can be toggled in the chart; the table always exposes all source counts, including zero values.
 - Average duration uses `finished_at - started_at` for completed and partial reviews, excludes queue time, and shows the contributing sample count. A missing measurement displays “Not available”. Findings are counted per review run, including repeated runs; this is not a deduplicated count of unique bugs.
 - Audit identifies the recorded trigger actor, not the PR author. Missing actors remain unknown. Analysis and publication statuses are separate.
 - Input/output tokens are measured usage. `incomplete` means that some attempts have unknown actual usage; known totals must not be treated as the complete bill. Reservations are shown separately. Missing measurements are not zero.
