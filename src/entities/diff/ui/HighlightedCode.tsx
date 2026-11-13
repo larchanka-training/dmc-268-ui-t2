@@ -1,6 +1,7 @@
 import type { HighlightToken } from '@/entities/diff/lib/tokenize'
 
 const TOKEN_COLOR: Record<string, string> = {
+  title: 'font-semibold text-primary',
   keyword: 'text-purple-600 dark:text-purple-300',
   'class-name': 'text-sky-700 dark:text-sky-300',
   function: 'text-sky-700 dark:text-sky-300',

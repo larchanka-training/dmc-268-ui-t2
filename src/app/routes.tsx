@@ -13,6 +13,7 @@ import { AnalyticsPage } from '@/pages/analytics'
 import { AuditPage } from '@/pages/audit'
 import { ReviewsPage } from '@/pages/reviews'
 import { RepositorySettingsPage } from '@/pages/repository-settings'
+import { RulePlaygroundPage } from '@/pages/rule-playground'
 
 /**
  * Декларация маршрутов (data router). Данные страница PR грузит сама через TanStack Query,
@@ -34,6 +35,7 @@ export const appRoutes: RouteObject[] = [
       { path: '/repos/connect', element: <ConnectRepoPage /> },
       { path: '/repos/:repositoryId/pull-requests', element: <RepositoryPullRequestsPage /> },
       { path: '/repos/:repositoryId/settings', element: <RepositorySettingsPage /> },
+      { path: '/repos/:repositoryId/rule-playground', element: <RulePlaygroundPage /> },
       { path: '/reviews', element: <ReviewsPage /> },
       { path: '/reviews/:reviewId', element: <PullRequestPage />, errorElement: <RouteError /> },
     ],

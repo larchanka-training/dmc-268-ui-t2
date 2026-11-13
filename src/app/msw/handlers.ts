@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, delay } from 'msw'
 import {
   AUTH_GITHUB_CALLBACK_PATH,
   AUTH_GITHUB_START_PATH,
@@ -225,6 +225,56 @@ export function resetMswStartReviewState(): void {
  * - GET /api/v1/repositories/:id/pull-requests → PullRequestPage
  */
 export const reviewHandlers = [
+  http.post('/api/v1/repositories/:id/rule-simulations', async ({ cookies, params, request }) => {
+    if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
+    if (!requireCsrf(request)) return new HttpResponse(null, { status: 403 })
+    if (!isKnownRepositoryId(String(params.id))) return notFound()
+    const key = request.headers.get('Idempotency-Key')
+    if (!key?.trim() || key.includes(',')) return apiError(422, 'VALIDATION_FAILED', 'Request is invalid.')
+    if (request.headers.get('X-Rule-Playground-Scenario') === 'empty') {
+      await delay(350)
+      return HttpResponse.json({ mock: true, findings: [] }, { headers: { 'X-Rule-Playground-Mock': 'true' } })
+    }
+    if (request.headers.get('X-Rule-Playground-Scenario') === 'findings') {
+      await delay(350)
+      return HttpResponse.json(
+        {
+          mock: true,
+          findings: [
+            {
+              rule: 'MOCK-1: Проверка входных данных',
+              title: 'Mock: непроверенный ввод',
+              category: 'Security',
+              severity: 'high',
+              file: 'src/example.ts',
+              line: 3,
+              message:
+                'Фиксированный пример: проверьте входные данные перед использованием. Это mock, а не результат анализа.',
+              end_line: 4,
+              explanation: 'Mock: значение в фиксированном примере передаётся в send без проверки формата.',
+              evidence: 'const value = request.input\nsend(value)',
+              recommendation: 'Mock: добавьте проверку формата до send(value).',
+              rule_ref: 'MOCK-1',
+              rule_description: 'Mock-правило: проверять входные данные перед использованием.',
+              model_context: 'Mock-контекст: src/example.ts:3–4\nconst value = request.input\nsend(value)',
+            },
+            {
+              title: 'Mock: имя переменной',
+              severity: 'low',
+              category: 'Maintainability',
+              file: 'src/example.ts',
+              line: 7,
+              message: 'Mock: используйте более понятное имя. Фиксированный пример без ссылки на правило и контекста.',
+            },
+          ],
+        },
+        { headers: { 'X-Rule-Playground-Mock': 'true' } },
+      )
+    }
+    // Backend PR #87 intentionally has no successful simulation contract yet.
+    return apiError(503, 'SERVICE_UNAVAILABLE', 'Service is unavailable.')
+  }),
+
   http.get(REVIEW_ROUTE, ({ cookies, params }) => {
     if (!isAuthenticated(cookies)) return new HttpResponse(null, { status: 401 })
     const fixture = MOCK_REVIEWS[String(params.id)]

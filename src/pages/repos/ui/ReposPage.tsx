@@ -69,6 +69,11 @@ export function ReposPage() {
                 <Button asChild size="sm" variant="outline">
                   <Link to={`/repos/${encodeURIComponent(repo.id)}/settings`}>Rules &amp; settings</Link>
                 </Button>
+                {repo.capabilities.canManageSettings === true ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link to={`/repos/${encodeURIComponent(repo.id)}/rule-playground`}>Rule Playground</Link>
+                  </Button>
+                ) : null}
                 <Button asChild size="sm" variant="outline">
                   <Link to={`/repos/${encodeURIComponent(repo.id)}/pull-requests`}>Pull requests</Link>
                 </Button>
