@@ -6,9 +6,15 @@ The wide layout has two panels: editable Code/Diff and `.review/rules.md` on the
 
 Code and Diff drafts survive switching modes. Validation errors appear beside their fields. Submission disables edits and duplicate requests. Errors preserve drafts; editing clears an obsolete result. Findings display available rule, severity, file, line and message. Output is escaped text.
 
+## One-click examples
+
+Choose **SQL-инъекция** (Code, `src/users.py`, SEC-1), **Архитектура** (Diff, `src/domain/order.ts`, ARCH-1) or **Кодстайл** (Code, `src/totals.py`, STY-1). A click fills in the input, mode and `rules-md/1` rules. You can edit the draft or immediately choose **Симулировать ревью**. Choosing another example clears the previous result or error. The SQL example constructs a query string for static inspection and never executes it.
+
+For a demonstration, choose **Mock: фиксированные замечания** in development and submit an unchanged example. Open **Подробнее** to inspect the matching rule, file, line and evidence. This fixture has no model behind it. If you edit the example, reload it to reproduce the fixed result or switch the development scenario to exercise error or empty states. Production sends the editable draft through the normal authenticated API.
+
 ## API contract
 
-Based on [Backend PR #87](https://github.com/larchanka-training/dmc-268-api-t2/pull/87), head `e2268a6d0a003d9ed91be20ae881b8f162685a14`:
+Based on [Backend PR #87](https://github.com/larchanka-training/dmc-268-api-t2/pull/87), verified at `ac503ee`:
 
 ```http
 POST /api/v1/repositories/{id}/rule-simulations
@@ -30,7 +36,7 @@ Code body:
 
 Diff replaces only `input` with `{ "kind": "diff", "unified_diff": "..." }`.
 
-The current backend admission endpoint deliberately returns **503 SERVICE_UNAVAILABLE** for a valid request. Stage 10 can decode the verified local Stage 9 service result, but does not enable execution or add a public OpenAPI success contract. Production rejects the development mock DTO. No automatic POST retry or success fallback is used. A 401 rechecks the existing session; generic failures and 503 preserve entered drafts. Rules diagnostics from 422 appear at the rules editor, with line numbers and truncation notice when provided. Generic 422 does not invent field coordinates.
+In the default API configuration, a valid request returns **503 SERVICE_UNAVAILABLE**. The API contract also defines a Code/Diff HTTP 200 response when an executor is configured; the UI does not enable that executor. Production rejects the development mock DTO. No automatic POST retry or success fallback is used. A 401 rechecks the existing session; generic failures and 503 preserve entered drafts. Rules diagnostics from 422 appear at the rules editor, with line numbers and truncation notice when provided. Generic 422 does not invent field coordinates.
 
 Client validation covers required values, normalized relative Code paths, 512-byte path limit, 64-KiB/500-line Code limit, 128-KiB Diff limit and 64-KiB rules limit (UTF-8). Full rules grammar, unified-diff parsing (50 files / 2000 changed lines) and the 256-KiB encoded request-body limit remain server-authoritative. Backend access checks include personal GitHub administrator permission; merely opening the page does not grant permission.
 
@@ -39,10 +45,10 @@ Client validation covers required values, normalized relative Code paths, 512-by
 `pnpm dev` starts the existing MSW worker. Sign in using the existing development auth flow, open a connected repository, and choose **Сценарий development**:
 
 - **API-контракт: 503 (MSW)** — default; mirrors the current admission refusal.
-- **Mock: фиксированные замечания** — two fixed findings, after a short loading state: a complete audit and a sparse audit.
+- **Mock: фиксированные замечания** — one matching audit for each unchanged one-click example, or two fixed demonstration findings for manual input.
 - **Mock: замечаний нет** — fixed empty result.
 
-Enter a relative path, some code (or a unified diff), and a valid rules example above, then click **Симулировать ревью**. Mock responses carry `X-Rule-Playground-Mock: true` and `{ "mock": true, "findings": [...] }`; this is an explicitly development-only format. The first demo fixture always refers to `src/example.ts:3–4` and explicit `rule_ref: MOCK-1`; the second refers to `src/example.ts:7` without a rule reference, regardless of input. It does not parse rules, analyze code, call an LLM, reproduce every backend refusal or enforce live GitHub permissions. Mock successes are labeled in the result panel. They are unavailable in production builds.
+Enter a relative path, some code (or a unified diff), and a valid rules example above, then click **Симулировать ревью**. Mock responses carry `X-Rule-Playground-Mock: true` and `{ "mock": true, "findings": [...] }`; this is an explicitly development-only format. For manual input, the first demo fixture refers to `src/example.ts:3–4` and explicit `rule_ref: MOCK-1`; the second refers to `src/example.ts:7` without a rule reference, regardless of input. It does not parse rules, analyze code, call an LLM, reproduce every backend refusal or enforce live GitHub permissions. Mock successes are labeled in the result panel. They are unavailable in production builds.
 
 ## Review Audit Inspector — Stage 2
 
@@ -62,7 +68,7 @@ Run `pnpm validate` for lint, stylelint, formatting, typecheck, all tests and pr
 
 ## Verified local service results — Stage 10
 
-The same HTTP client and Split View now accept an exact HTTP 200 matching the local `CodeSimulationResult` / `DiffSimulationResult`. This is a frontend decoder for the existing verified service DTO, not a public execution switch: the ordinary backend still returns canonical 503 and its OpenAPI contract is unchanged. Frontend tests use deterministic MSW responses; no LLM is called.
+The same HTTP client and Split View now accept an exact HTTP 200 matching the local `CodeSimulationResult` / `DiffSimulationResult`. The decoder accepts the documented service DTO. In the default configuration, the backend still returns canonical 503. Frontend tests use deterministic MSW responses; no LLM is called.
 
 Real results contain only `findings` (at most 100) and a nonnegative safe-integer `rejected_count`. Each Code finding requires `rule_ref`, `path`, positive safe-integer `start_line` / `end_line` (inclusive, ordered), `title`, `explanation` and `evidence`; Diff additionally requires `side: 'old' | 'new'`. The decoder follows the service's relative-path and string-length constraints. Missing fields, unknown fields, invalid JSON/types/ranges, mixed DTOs and other successful HTTP statuses reject the entire response with the existing safe error. It never displays a valid subset of a malformed response.
 
