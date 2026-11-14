@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QuotaPanel } from './QuotaPanel'
 import { InsightsHttpError, useAnalytics, useQuotas, type Analytics } from '@/entities/repository-insights'
@@ -16,15 +16,37 @@ const categories = [
 // Секция графика изолирована BlockErrorBoundary на месте вызова: падение секции
 // (например, неожиданный формат wire) не роняет карточки статистики и страницу целиком.
 function FindingsSection({ data }: { data: Analytics }) {
+  const [showHelp, setShowHelp] = useState(false)
+  const helpId = useId()
   const [hidden, setHidden] = useState<string[]>([])
   const maximum = Math.max(1, ...data.findings_by_day.flatMap((day) => categories.map(({ key }) => day[key])))
   return (
     <section className="space-y-4 rounded-lg border border-border p-4">
-      {data.totals.reviews === 0 && <EmptyState title="No reviews in this period." />}
       <h2 className="font-semibold">Findings over time</h2>
       <p className="text-sm text-muted-foreground">
-        {data.period.date_from} – {data.period.date_to} · UTC · Findings counted per review run.
+        {data.period.date_from} – {data.period.date_to} · UTC
       </p>
+      <button
+        type="button"
+        id={`${helpId}-button`}
+        aria-controls={helpId}
+        aria-expanded={showHelp}
+        onClick={() => setShowHelp((open) => !open)}
+        className="rounded text-sm text-primary underline focus-visible:outline focus-visible:outline-2"
+      >
+        How to read this chart
+      </button>
+      <div
+        hidden={!showHelp}
+        id={helpId}
+        role="region"
+        aria-labelledby={`${helpId}-button`}
+        className="max-w-prose rounded-md bg-muted p-3 text-sm"
+      >
+        From {data.period.date_from} through {data.period.date_to}, each point counts findings in one category from
+        review runs created on that UTC day. Repeat runs count separately. A point at zero means those runs recorded no
+        findings in that category, or there were no runs that day.
+      </div>
       <svg viewBox="0 0 700 235" className="max-h-64 w-full" role="img" aria-label="Daily findings by category">
         <text x="0" y="20" fontSize="12" fill="currentColor">
           {maximum}
@@ -109,7 +131,9 @@ function FindingsSection({ data }: { data: Analytics }) {
           <tbody>
             {data.findings_by_day.map((day) => (
               <tr className="border-t border-border" key={day.date}>
-                <th className="p-2 font-normal">{day.date}</th>
+                <th scope="row" className="p-2 font-normal">
+                  {day.date}
+                </th>
                 {categories.map(({ key }) => (
                   <td className="p-2" key={key}>
                     {day[key]}
@@ -124,7 +148,7 @@ function FindingsSection({ data }: { data: Analytics }) {
   )
 }
 
-function AnalyticsResults({ data }: { data: Analytics }) {
+function AnalyticsSummary({ data }: { data: Analytics }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-3">
@@ -146,9 +170,7 @@ function AnalyticsResults({ data }: { data: Analytics }) {
           </p>
         </div>
       </div>
-      <BlockErrorBoundary>
-        <FindingsSection data={data} />
-      </BlockErrorBoundary>
+      {data.totals.reviews === 0 && <EmptyState title="No reviews in this period." />}
     </>
   )
 }
@@ -175,14 +197,27 @@ export function AnalyticsPage() {
           View audit log
         </Link>
       )}
-      {repositoryId && query.isSuccess && !pageError && <QuotaPanel query={quotas} />}
+      {repositoryId && query.isSuccess && !pageError && (
+        <BlockErrorBoundary>
+          <QuotaPanel query={quotas} />
+        </BlockErrorBoundary>
+      )}
       {repositoryId && query.isPending && <p role="status">Loading analytics…</p>}
       {pageError ? (
         <p role="alert" className="text-error-foreground">
           {pageError.message}
         </p>
       ) : (
-        query.data && <AnalyticsResults data={query.data} />
+        query.data && (
+          <>
+            <BlockErrorBoundary>
+              <AnalyticsSummary data={query.data} />
+            </BlockErrorBoundary>
+            <BlockErrorBoundary>
+              <FindingsSection data={query.data} />
+            </BlockErrorBoundary>
+          </>
+        )
       )}
     </div>
   )

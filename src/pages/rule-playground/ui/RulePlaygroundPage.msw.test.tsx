@@ -413,3 +413,99 @@ it.each(['503', 'malformed'])(
     expect(screen.queryByRole('region', { name: 'Review Audit Inspector' })).not.toBeInTheDocument()
   },
 )
+
+it('loads the SQL example in one click and keeps the edited draft on a 503', async () => {
+  const { user } = renderWithRouter(`/repos/${MOCK_REPOSITORY_ID}/rule-playground`, {
+    session: { ...fakeMe, csrfToken: MSW_CSRF_TOKEN },
+  })
+  await user.click(screen.getByRole('button', { name: 'SQL-инъекция' }))
+  expect(screen.getByLabelText('Путь файла')).toHaveValue('src/users.py')
+  const editor = screen.getByLabelText<HTMLTextAreaElement>('Исходный код')
+  expect(editor.value).toContain('SELECT id FROM users')
+  expect(screen.getByLabelText<HTMLTextAreaElement>('.review/rules.md').value).toContain('# Security\n## SEC-1:')
+  const edited = editor.value + '\n# Review this query'
+  fireEvent.change(editor, { target: { value: edited } })
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('503 SERVICE_UNAVAILABLE')
+  expect(editor).toHaveValue(edited)
+})
+
+it('switches from an inspected result to the architecture example and submits its unified diff', async () => {
+  let submitted: unknown
+  server.use(http.post(realEndpoint, () => HttpResponse.json({ findings: [realCodeFinding], rejected_count: 0 })))
+  const user = await prepareRealCode()
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  await user.click(await screen.findByRole('button', { name: 'Подробнее' }))
+  await user.click(screen.getByRole('button', { name: 'Архитектура' }))
+  expect(screen.queryByRole('region', { name: 'Review Audit Inspector' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('list', { name: 'Замечания' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Diff' })).toHaveAttribute('aria-pressed', 'true')
+  const diff = screen.getByLabelText<HTMLTextAreaElement>('Unified diff').value
+  expect(diff.split('\n')[0]).toBe('diff --git a/src/domain/order.ts b/src/domain/order.ts')
+  expect(diff).toContain('+++ b/src/domain/order.ts\n@@')
+  server.use(
+    http.post(realEndpoint, async ({ request }) => {
+      submitted = await request.json()
+      return HttpResponse.json({ findings: [], rejected_count: 0 })
+    }),
+  )
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  await screen.findByText('Замечаний нет.')
+  expect(submitted).toEqual({
+    input: { kind: 'diff', unified_diff: diff },
+    rules: { format: 'rules-md/1', markdown: expect.stringContaining('# Style\n## ARCH-1:') },
+  })
+})
+
+it('replaces a failed architecture draft with a ready-to-run code style example', async () => {
+  const { user } = renderWithRouter(`/repos/${MOCK_REPOSITORY_ID}/rule-playground`, {
+    session: { ...fakeMe, csrfToken: MSW_CSRF_TOKEN },
+  })
+  await user.click(screen.getByRole('button', { name: 'Архитектура' }))
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('503 SERVICE_UNAVAILABLE')
+  await user.click(screen.getByRole('button', { name: 'Кодстайл' }))
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Code' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByLabelText('Путь файла')).toHaveValue('src/totals.py')
+  expect(screen.getByLabelText<HTMLTextAreaElement>('Исходный код').value).toContain('def orderTotal(')
+  expect(screen.getByLabelText<HTMLTextAreaElement>('.review/rules.md').value).toContain('# Style\n## STY-1:')
+  await user.selectOptions(screen.getByLabelText('Сценарий development'), 'empty')
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  expect(await screen.findByText('Замечаний нет.')).toBeInTheDocument()
+})
+
+it.each([
+  ['SQL-инъекция', 'SEC-1', 'src/users.py:2', 'SELECT id FROM users'],
+  ['Архитектура', 'ARCH-1', 'src/domain/order.ts:1', "import { sql } from '../infra/database'"],
+  ['Кодстайл', 'STY-1', 'src/totals.py:1', 'def orderTotal(prices):'],
+])('shows the matching mock audit for the %s example', async (label, rule, location, evidence) => {
+  const { user } = renderWithRouter(`/repos/${MOCK_REPOSITORY_ID}/rule-playground`, {
+    session: { ...fakeMe, csrfToken: MSW_CSRF_TOKEN },
+  })
+  await user.click(screen.getByRole('button', { name: label }))
+  await user.selectOptions(screen.getByLabelText('Сценарий development'), 'findings')
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  const list = await screen.findByRole('list', { name: 'Замечания' })
+  expect(list).toHaveTextContent(rule)
+  await user.click(within(list).getByRole('button', { name: 'Подробнее' }))
+  const inspector = screen.getByRole('region', { name: 'Review Audit Inspector' })
+  expect(inspector).toHaveTextContent('Mock')
+  expect(inspector).toHaveTextContent(rule)
+  expect(inspector).toHaveTextContent(location)
+  expect(inspector).toHaveTextContent(evidence)
+})
+
+it('does not attach a fixed mock finding to an edited example', async () => {
+  const { user } = renderWithRouter(`/repos/${MOCK_REPOSITORY_ID}/rule-playground`, {
+    session: { ...fakeMe, csrfToken: MSW_CSRF_TOKEN },
+  })
+  await user.click(screen.getByRole('button', { name: 'Кодстайл' }))
+  await user.selectOptions(screen.getByLabelText('Сценарий development'), 'findings')
+  fireEvent.change(screen.getByLabelText('Исходный код'), {
+    target: { value: 'def order_total(prices):\n    return sum(prices)' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Симулировать ревью' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Для изменённого примера нет фиксированного замечания')
+  expect(screen.queryByRole('list', { name: 'Замечания' })).not.toBeInTheDocument()
+})

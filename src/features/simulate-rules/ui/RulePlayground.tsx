@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { languageFromPath } from '@/entities/diff'
+import { examples, matchesExample, type PlaygroundExample } from '../model/examples'
 import { SyntaxPreview } from './SyntaxPreview'
 import { ReviewAuditInspector } from './ReviewAuditInspector'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { meQueryKey, useMeQuery, type Me } from '@/entities/session'
-import { simulateRules, SimulationHttpError } from '../api/simulate'
+import { simulateRules, SimulationHttpError, type SimulationRequest } from '../api/simulate'
 import { Button } from '@/shared/ui/button'
 import { Badge } from '@/shared/ui/badge'
 import { Textarea } from '@/shared/ui/textarea'
@@ -25,6 +26,7 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
     }
   }, [])
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null)
+  const [selectedExample, setSelectedExample] = useState<PlaygroundExample | null>(null)
   const [mockScenario, setMockScenario] = useState('')
   const [mode, setMode] = useState<'code' | 'diff'>('code')
   const [path, setPath] = useState('')
@@ -32,6 +34,10 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
   const [diff, setDiff] = useState('')
   const [rules, setRules] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const request: SimulationRequest = {
+    input: mode === 'code' ? { kind: 'code', path, source } : { kind: 'diff', unified_diff: diff },
+    rules: { format: 'rules-md/1', markdown: rules },
+  }
   const mutation = useMutation({
     retry: false,
     onError: async (error) => {
@@ -40,16 +46,7 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
         await client.resetQueries({ queryKey: meQueryKey })
       if (error instanceof SimulationHttpError && error.rulesDiagnostics) setErrors({ rules: error.rulesDiagnostics })
     },
-    mutationFn: () =>
-      simulateRules(
-        repositoryId,
-        {
-          input: mode === 'code' ? { kind: 'code', path, source } : { kind: 'diff', unified_diff: diff },
-          rules: { format: 'rules-md/1', markdown: rules },
-        },
-        me!.csrfToken,
-        mockScenario,
-      ),
+    mutationFn: () => simulateRules(repositoryId, request, me!.csrfToken, mockScenario),
   })
   function editDraft(update: () => void) {
     update()
@@ -89,6 +86,15 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
           ...(!rules.trim() ? { rules: 'Введите правила ревью.' } : {}),
           ...(new TextEncoder().encode(rules).length > 65536 ? { rules: 'Правила: не более 64 КиБ UTF-8.' } : {}),
         }
+        if (
+          import.meta.env.DEV &&
+          mockScenario === 'findings' &&
+          selectedExample &&
+          !matchesExample(selectedExample, request)
+        ) {
+          nextErrors.input =
+            'Для изменённого примера нет фиксированного замечания. Выберите готовый пример ещё раз или смените сценарий development.'
+        }
         setErrors(nextErrors)
         if (Object.keys(nextErrors).length === 0 && me && !mutation.isPending) {
           setExpandedFinding(null)
@@ -101,6 +107,34 @@ export function RulePlayground({ repositoryId }: { repositoryId: string }) {
         aria-label="Входные данные"
         className="min-w-0 space-y-4 rounded-md border border-border p-4"
       >
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Готовые примеры</legend>
+          <div className="flex flex-wrap gap-2">
+            {examples.map((example) => (
+              <Button
+                key={example.id}
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  editDraft(() => {
+                    setSelectedExample(example)
+                    setMode(example.input.kind)
+                    if (example.input.kind === 'code') {
+                      setPath(example.input.path)
+                      setSource(example.input.source)
+                    } else {
+                      setDiff(example.input.unified_diff)
+                    }
+                    setRules(example.markdown)
+                  })
+                }
+              >
+                {example.label}
+              </Button>
+            ))}
+          </div>
+        </fieldset>
         <div className="flex gap-2" role="group" aria-label="Формат входных данных">
           {(['code', 'diff'] as const).map((value) => (
             <Button

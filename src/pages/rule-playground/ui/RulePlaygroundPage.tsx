@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useMeQuery } from '@/entities/session'
 import { RulePlayground } from '@/features/simulate-rules'
+import { BlockErrorBoundary } from '@/shared/ui/block-error-boundary'
 
 export function RulePlaygroundPage() {
   const { repositoryId = '' } = useParams()
@@ -8,7 +9,9 @@ export function RulePlaygroundPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Rule Playground</h1>
-      <RulePlayground key={`${userId}:${repositoryId}`} repositoryId={repositoryId} />
+      <BlockErrorBoundary key={`${userId}:${repositoryId}`}>
+        <RulePlayground repositoryId={repositoryId} />
+      </BlockErrorBoundary>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { http, HttpResponse, delay } from 'msw'
+import { exampleMockFinding } from './rule-playground-examples'
 import {
   AUTH_GITHUB_CALLBACK_PATH,
   AUTH_GITHUB_START_PATH,
@@ -237,6 +238,10 @@ export const reviewHandlers = [
     }
     if (request.headers.get('X-Rule-Playground-Scenario') === 'findings') {
       await delay(350)
+      const finding = exampleMockFinding(await request.json().catch(() => null))
+      if (finding) {
+        return HttpResponse.json({ mock: true, findings: [finding] }, { headers: { 'X-Rule-Playground-Mock': 'true' } })
+      }
       return HttpResponse.json(
         {
           mock: true,
@@ -271,7 +276,7 @@ export const reviewHandlers = [
         { headers: { 'X-Rule-Playground-Mock': 'true' } },
       )
     }
-    // Backend PR #87 intentionally has no successful simulation contract yet.
+    // Match the default API configuration: no simulation executor is configured.
     return apiError(503, 'SERVICE_UNAVAILABLE', 'Service is unavailable.')
   }),
 

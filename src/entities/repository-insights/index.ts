@@ -136,19 +136,26 @@ export interface AuditReview {
   cost: { amount: null; currency: null; status: 'unavailable' }
 }
 export interface AuditPage {
+  demo: boolean
   items: AuditReview[]
   next_cursor: string | null
 }
 
-export function useAudit(repositoryId: string, days: number, status = '') {
+export function useAudit(
+  repositoryId: string,
+  days: number,
+  status = '',
+  { limit = 20, refetchOnMount }: { limit?: number; refetchOnMount?: 'always' } = {},
+) {
   const client = useQueryClient()
   const userId = useMeQuery().data?.user.id
   const query = useInfiniteQuery({
-    queryKey: ['repository-insights', userId, repositoryId, 'audit', days, status],
+    queryKey: ['repository-insights', userId, repositoryId, 'audit', days, status, limit],
+    refetchOnMount,
     initialPageParam: null as string | null,
-    getNextPageParam: (page: AuditPage) => page.next_cursor ?? undefined,
+    getNextPageParam: (page: AuditPage) => page?.next_cursor ?? undefined,
     queryFn: async ({ signal, pageParam }): Promise<AuditPage> => {
-      const params = new URLSearchParams({ days: String(days), limit: '20' })
+      const params = new URLSearchParams({ days: String(days), limit: String(limit) })
       if (status) params.set('status', status)
       if (pageParam) params.set('cursor', pageParam)
       const response = await fetch(`/api/v1/repositories/${encodeURIComponent(repositoryId)}/reviews?${params}`, {
@@ -157,7 +164,8 @@ export function useAudit(repositoryId: string, days: number, status = '') {
       })
       if (response.status === 401) await client.resetQueries({ queryKey: meQueryKey })
       if (!response.ok) throw new InsightsHttpError(response.status)
-      return response.json() as Promise<AuditPage>
+      const page = (await response.json()) as Omit<AuditPage, 'demo'>
+      return { ...page, demo: response.headers.get('X-Review-History-Source') === 'msw' }
     },
     enabled: Boolean(repositoryId && userId),
   })

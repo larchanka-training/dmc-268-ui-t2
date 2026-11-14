@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="24" role="img" aria-labelledby="title desc">
+<title id="title">Review run: Completed</title><desc id="desc">Latest review run created 2026-11-11T08:06:05.000Z (UTC).</desc>
+<rect width="180" height="24" rx="4" fill="#334155"/><path d="M92 0H176q4 0 4 4v16q0 4-4 4H92Z" fill="#365579"/>
+<g fill="#fff" font-family="sans-serif" font-size="12" text-anchor="middle">
+<text x="46" y="16">Review run</text><text x="136" y="16">Completed</text></g></svg>

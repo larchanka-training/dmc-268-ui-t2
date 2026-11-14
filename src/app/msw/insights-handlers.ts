@@ -84,11 +84,20 @@ export const insightsHandlers = [
     const rows = String(params.id).endsWith('1002')
       ? []
       : auditRows(end).filter((row) => !status || row.status === status)
-    const offset = url.searchParams.get('cursor') === 'demo:2' ? 2 : 0
-    return HttpResponse.json({
-      items: rows.slice(offset, offset + 2),
-      next_cursor: rows.length > offset + 2 ? 'demo:2' : null,
-    })
+    // Keep the demo paginated while honoring smaller limits (the badge requests one run).
+    const limit = Number(url.searchParams.get('limit') ?? 2)
+    const cursor = url.searchParams.get('cursor')
+    if (!Number.isInteger(limit) || limit < 1 || (cursor !== null && !/^demo:\d+$/.test(cursor)))
+      return new HttpResponse(null, { status: 422 })
+    const offset = cursor === null ? 0 : Number(cursor.slice(5))
+    const nextOffset = offset + Math.min(limit, 2)
+    return HttpResponse.json(
+      {
+        items: rows.slice(offset, nextOffset),
+        next_cursor: rows.length > nextOffset ? `demo:${nextOffset}` : null,
+      },
+      { headers: { 'X-Review-History-Source': 'msw' } },
+    )
   }),
   http.get('/api/v1/repositories/:id/quotas', ({ params, cookies }) => {
     const error = access(String(params.id), cookies)
