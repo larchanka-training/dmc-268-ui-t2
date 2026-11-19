@@ -1,13 +1,12 @@
 # Follow-up: Add Vitest and enable hard TDD gate
 
-**Status:** open (tracked; out of `agents_setup` MR scope)  
-**Repo:** `dmc-268-ui-t2`  
-**Minimum scope:**
+**Status:** done (Vitest + hard TDD gate in `AGENTS.md`)  
+**Repo:** `dmc-268-ui-t2`
 
-1. Add Vitest (or equivalent) so UI behaviour tests can run locally with one npm script.
-2. Flip UI `AGENTS.md` **When behaviour changes** back to a hard failing-test-first gate (remove the soft “until a runner exists” exception).
-3. Keep Close quality gate aligned (`npm run build` may remain; tests become required for behaviour changes).
+## Landed
 
-**Out of minimum scope:** CI job expansion, full coverage quotas, E2E framework choice.
+1. Vitest is the UI runner: `pnpm test` / `pnpm test:watch` (`package.json`); config in `vite.config.ts` + `src/test/setup.ts`.
+2. UI `AGENTS.md` **When behaviour changes** requires failing-test-first (no soft “until a runner exists” exception).
+3. Close quality path uses **pnpm** (`pnpm validate` / `pnpm test` / `pnpm build`).
 
-Until this lands, UI agents use soft TDD: prefer red→green when a runner exists for the seam; otherwise use `npm run build` as the interim quality gate.
+**Out of this follow-up:** CI job expansion, full coverage quotas, E2E framework choice.

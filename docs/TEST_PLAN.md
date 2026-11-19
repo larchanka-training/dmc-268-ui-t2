@@ -54,7 +54,7 @@
 
 ### **3.5. Frontend Testing (пирамида UI)**
 
-Фронтенд — `dmc-268-ui-t2`. Тест-раннер на момент написания не установлен; его добавление отслеживается в [`follow-ups/add-vitest-hard-tdd-gate.md`](./follow-ups/add-vitest-hard-tdd-gate.md). До появления раннера действует «soft TDD» из `AGENTS.md`; после — обязательный red → green по процедуре `.agents/skills/tdd/SKILL.md`.
+Фронтенд — `dmc-268-ui-t2`. Раннер — Vitest (`pnpm test` / `pnpm test:watch`). В `AGENTS.md` действует жёсткий red → green по процедуре `.agents/skills/tdd/SKILL.md` (follow-up [`add-vitest-hard-tdd-gate.md`](./follow-ups/add-vitest-hard-tdd-gate.md) — done).
 
 | Уровень | Что тестируем | Инструменты | Контур CI |
 | :---- | :---- | :---- | :---- |
@@ -271,6 +271,6 @@
 
 > * [`FRONTEND_ARCHITECTURE.md`](./FRONTEND_ARCHITECTURE.md) — слои FSD, контракты компонентов, мок состояния.  
 > * [`SYSTEM_DESIGN_RU.md`](./SYSTEM_DESIGN_RU.md) — контракты API (`/reviews/{id}`, `ContextPayload`, coverage), используемые в контрактных тестах UI.  
-> * [`follow-ups/add-vitest-hard-tdd-gate.md`](./follow-ups/add-vitest-hard-tdd-gate.md) — внедрение Vitest и переход на жёсткий TDD-гейт для UI.  
+> * [`follow-ups/add-vitest-hard-tdd-gate.md`](./follow-ups/add-vitest-hard-tdd-gate.md) — done: Vitest + жёсткий TDD-гейт в UI `AGENTS.md`.  
 > * `.agents/skills/tdd/` — процедура red → green и примеры тестов для UI/TypeScript и Python/FastAPI.  
 > * `AGENTS.md` — фазы работы агентов (Align / Execute / Close) и quality-команды.
