@@ -5,6 +5,7 @@
 - [docs/SYSTEM_DESIGN.md](docs/SYSTEM_DESIGN.md) (English)
 - [docs/SYSTEM_DESIGN_RU.md](docs/SYSTEM_DESIGN_RU.md) (Russian)
 - [Repository rules and settings](docs/repository-settings.md)
+- [Sprint 5 Eng 5 demo sandbox evidence](docs/eng5-demo-sandbox.md)
 
 Vite + React + TypeScript frontend for DMC-268 Team 2.
 
